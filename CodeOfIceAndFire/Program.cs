@@ -21,12 +21,14 @@ class Player
         public int X { get; set; }
         public int Y { get; set; }
         public int Owner { get; set; }
+        public bool IsActive { get; set; }
 
-        public Point(int x, int y, int owner)
+        public Point(int x, int y, int owner, bool isActive)
         {
             X = x;
             Y = y;
             Owner = owner;
+            IsActive = isActive;
         }
        
     }
@@ -35,7 +37,7 @@ class Player
     {
         public int BuildingType { get; set; }
 
-        public Building(int x, int y, int owner, int buildingType) : base(x, y, owner)
+        public Building(int x, int y, int owner, int buildingType) : base(x, y, owner, true)
         {
             BuildingType = buildingType;
         }
@@ -46,7 +48,7 @@ class Player
         public int Id { get; set; }
         public int Level { get; set; }
 
-        public Unit(int x, int y, int owner, int id, int level) : base(x, y, owner)
+        public Unit(int x, int y, int owner, int id, int level) : base(x, y, owner, true)
         {
             Id = id;
             Level = level;
@@ -68,7 +70,7 @@ class Player
             inputs = input.Split(' ');
             int x = int.Parse(inputs[0]);
             int y = int.Parse(inputs[1]);
-            mineSpots.Add(new Point(x, y,-1));
+            mineSpots.Add(new Point(x, y,-1, true));
         }
 
         // game loop
@@ -151,7 +153,7 @@ class Player
                 if (movePoint != null)
                 {
                     command += $"MOVE {myUnit.Id} {movePoint.X} {movePoint.Y};";
-                    map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0);
+                    map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
                     map[movePoint.Y][movePoint.X] = new Unit(movePoint.X, movePoint.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
                 }
             }
@@ -177,7 +179,7 @@ class Player
 
             while (gold >= RecruitmentCost)
             {
-                var recruitmentPoints = GetRecruitmentPoints(map, lines);
+                var recruitmentPoints = GetRecruitmentPoints(map);
                 var bestRecruitmentPoint = GetBestRecruitmentPoint(recruitmentPoints, oppBuilding.Single(b => b.BuildingType == 0));
                 if (bestRecruitmentPoint != null)
                 {
@@ -204,33 +206,8 @@ class Player
         return Math.Abs(x1 - x2) + Math.Abs(y1 - y2);
     }
 
-    static IList<Point> GetNearNeutralPoints(IList<string> lines, IList<Unit> oppUnits)
-    {
-        var nearNeutralPoints = new List<Point>();
-        for (var i = 0; i < lines.Count; ++i)
-        {
-            var line = lines[i];
-            for (var j = 0; j < lines[i].Count(); ++j)
-            {
-                if (line[j] != '.' && line[j] != 'x' && line[j] != 'X') continue;
-                if (oppUnits.Any(u => u.X == j && u.Y == i)) continue;
-               
-                if (j > 0 && IsMyPoint(line[j - 1]) ||
-                        j < line.Length - 1 && IsMyPoint(line[j + 1]) ||
-                        i > 0 && IsMyPoint(lines[i - 1][j]) ||
-                        i < lines.Count - 1 && IsMyPoint(lines[i + 1][j]))
-                {
-                    nearNeutralPoints.Add(new Point(j, i, -1));
-                    //Console.Error.WriteLine(j + " " + i);
-                }
-            }
-        
-        }
-
-        return nearNeutralPoints;
-    }
-
-    static IList<Point> GetRecruitmentPoints(IList<IList<Point>> map, IList<string> lines)
+    
+    static IList<Point> GetRecruitmentPoints(IList<IList<Point>> map)
     {
         var recruitmentPoints = new List<Point>();
         for (var i = 0; i < map.Count; ++i)
@@ -245,15 +222,15 @@ class Player
                         continue;
                     if (point is Unit pointUnit)
                         continue;
-                    if (lines[i][j] != 'o')//is active
+                    if (point.IsActive)//is active
                         recruitmentPoints.Add(point);
                 }
                 else
                 {
-                    var isBorderPoint = i > 0 && map[i - 1][j] != null && map[i - 1][j].Owner == 0 && lines[i-1][j] != 'o' ||
-                                        i < map.Count - 1 && map[i + 1][j] != null && map[i + 1][j].Owner == 0 && lines[i+1][j] != 'o' ||
-                                        j > 0 && map[i][j - 1] != null && map[i][j - 1].Owner == 0 && lines[i][j-1] != 'o' ||
-                                        j < map[i].Count - 1 && map[i][j + 1] != null && map[i][j + 1].Owner == 0 && lines[i][j+1] != 'o';
+                    var isBorderPoint = i > 0 && map[i - 1][j] != null && map[i - 1][j].Owner == 0 && map[i-1][j].IsActive ||
+                                        i < map.Count - 1 && map[i + 1][j] != null && map[i + 1][j].Owner == 0 && map[i+1][j].IsActive ||
+                                        j > 0 && map[i][j - 1] != null && map[i][j - 1].Owner == 0 && map[i][j-1].IsActive ||
+                                        j < map[i].Count - 1 && map[i][j + 1] != null && map[i][j + 1].Owner == 0 && map[i][j+1].IsActive;
 
                     if (!isBorderPoint)
                         continue;
@@ -409,15 +386,19 @@ class Player
                 switch (lines[i][j])
                 {
                     case 'o':
+                        point = new Point(j, i, 0, false);
+                        break;
                     case 'O':
-                        point = new Point(j, i, 0);
+                        point = new Point(j, i, 0, true);
                         break;
                     case 'x':
+                        point = new Point(j, i, 1, false);
+                        break;
                     case 'X':
-                        point = new Point(j, i, 1);
+                        point = new Point(j, i, 1, true);
                         break;
                     case '.':
-                        point = new Point(j, i, -1);
+                        point = new Point(j, i, -1, true);
                         break;
                 }
 
