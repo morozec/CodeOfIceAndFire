@@ -532,19 +532,7 @@ class Player
 
             //var newLines = GetNewLines(lines, myUnits);
 
-            //var mines = myBuildings.Where(b => b.BuildingType == 1).ToList();
-            //while (gold >= GetMineCost(mines.Count))
-            //{
-            //    var bmp = GetBestMinePosition(newLines, mineSpots, mines, myBuildings.Single(b => b.BuildingType == 0), myUnits);
-            //    if (bmp != null)
-            //    {
-            //        command += $"BUILD MINE {bmp.X} {bmp.Y};";
-            //        mines.Add(new Building(bmp.X, bmp.Y, 0, 1));
-            //        gold -= GetMineCost(mines.Count);
-            //    }
-            //    else
-            //        break;
-            //}
+            
             
 
             UpdateMap(map, myBuildings.Single(b => b.BuildingType == 0));
@@ -564,6 +552,23 @@ class Player
                     break;//иначе падаем в бесконечный цикл
             }
 
+           
+            var mines = myBuildings.Where(b => b.BuildingType == 1).ToList();
+            while (gold >= GetMineCost(mines.Count))
+            {
+                var bmp = GetBestMinePosition(map, mineSpots, myBuildings.Single(b => b.BuildingType == 0));
+                if (bmp != null)
+                {
+                    command += $"BUILD MINE {bmp.X} {bmp.Y};";
+                    mines.Add(new Building(bmp.X, bmp.Y, 0, 1));
+                    map[bmp.Y][bmp.X] = new Building(bmp.X, bmp.Y, 0, 1);
+                    gold -= GetMineCost(mines.Count);
+                }
+                else
+                    break;
+            }
+        
+
             Console.WriteLine(command != "" ? command : "WAIT");
         }
     }
@@ -578,7 +583,27 @@ class Player
         return Math.Abs(x1 - x2) + Math.Abs(y1 - y2);
     }
 
-    
+    static Point GetBestMinePosition(IList<IList<Point>> map, IList<Point> mineSpots,Building myBase)
+    {
+        Point bestMineSpot = null;
+        int minDist = int.MaxValue;
+        foreach (var ms in mineSpots)
+        {
+            var isOkPoint = map[ms.Y][ms.X] != null && !(map[ms.Y][ms.X] is Building) && !(map[ms.Y][ms.X] is Unit) &&
+                             map[ms.Y][ms.X].Owner == 0 && map[ms.Y][ms.X].IsActive;
+            if (!isOkPoint) continue;
+            var dist = GetManhDist(ms, myBase);
+            if (dist < minDist)
+            {
+                minDist = dist;
+                bestMineSpot = ms;
+            }
+        }
+
+        return bestMineSpot;
+    }
+
+
     static IList<Point> GetRecruitmentPoints(IList<IList<Point>> map)
     {
         var recruitmentPoints = new List<Point>();
