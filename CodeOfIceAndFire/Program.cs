@@ -5,11 +5,335 @@ using System.Text;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net;
+using AStar;
 
 /**
  * Auto-generated code below aims at helping you parse
  * the standard input according to the problem statement.
  **/
+ 
+
+namespace AStar
+{
+    public abstract class Point : IComparable<Point>
+    {
+        public double G { get; set; }
+        public double H { get; set; }
+
+        public double F
+        {
+            get
+            {
+                return G + H;
+            }
+        }
+
+        public Point CameFromPoint { get; set; }
+
+        public abstract IEnumerable<Point> GetNeighbors(IEnumerable<Point> points);
+
+        public abstract double GetHeuristicCost(Point goal);
+
+        public abstract double GetCost(Point goal);
+
+        public int CompareTo(Point other)
+        {
+            return -F.CompareTo(other.F);
+        }
+    }
+
+    public class AStarPoint : Point
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+        public IEnumerable<AStarPoint> Neighbors { get; set; }
+        public int Weight { get; set; }
+
+        public override IEnumerable<Point> GetNeighbors(IEnumerable<Point> points)
+        {
+            return Neighbors;
+        }
+
+        public override double GetHeuristicCost(Point goal)
+        {
+            var aStarGoal = goal as AStarPoint;
+            return Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y);
+        }
+
+        public override double GetCost(Point goal)
+        {
+            var aStarGoal = goal as AStarPoint;
+            return Weight + Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y) * aStarGoal.Weight;
+        }
+
+        public override string ToString()
+        {
+            return $"{X} {Y}";
+        }
+    }
+
+
+    /// <summary>
+    /// Матрица распростарения
+    /// </summary>
+    public class ExpansionMatrixConteiner
+    {
+        /// <summary>
+        /// Стоимости прохода до точек сети
+        /// </summary>
+        public IDictionary<Point, double> ExpansionMatrix { get; set; }
+
+
+        public Point RealGoalPoint { get; set; }
+
+        ///// <summary>
+        ///// Оптимальные пути прохода до точек сети
+        ///// </summary>
+        //public IDictionary<Point, IList<Point>> Path { get; set; } 
+    }
+
+    public static class Calculator
+    {
+        /// <summary>
+        /// Расчет матрицы распространения
+        /// </summary>
+        /// <param name="start">Точка, для которой рассчитывается матрица распространения</param>
+        /// <param name="goal">Целевая точка. Если null, то матрица распространения рассчитывается от стартовой точки до всех остальных точек сети</param>
+        /// <param name="allPoints">Все точки сети</param>
+        /// <returns>Матрица распространения</returns>
+        private static ExpansionMatrixConteiner GetExpansionMatrix(Point start, Point goal, IEnumerable<Point> allPoints)
+        {
+            foreach (var point in allPoints)
+            {
+                point.CameFromPoint = null;
+            }
+
+            var emc = new ExpansionMatrixConteiner
+            {
+                ExpansionMatrix = new Dictionary<Point, double>(),
+                //Path =  new Dictionary<Point, IList<Point>>()
+            };
+
+            var closedSet = new HashSet<Point>();
+            var openSet = new HashSet<Point> { start };
+
+            start.G = 0d;
+            start.H = goal == null ? 0d : start.GetHeuristicCost(goal);
+
+            var pathFound = false;
+
+            while (openSet.Count > 0)
+            {
+                var x = GetPointWithMinF(openSet);
+
+                if (goal != null && x == goal)
+                {
+                    pathFound = true;
+                    emc.RealGoalPoint = goal;
+                    break;
+                }
+                openSet.Remove(x);
+                closedSet.Add(x);
+                emc.ExpansionMatrix.Add(x, x.G);
+                //emc.Path.Add(x, ReconstructPath(x));
+
+                var neighbors = x.GetNeighbors(allPoints);
+                foreach (var y in neighbors)
+                {
+                    if (closedSet.Contains(y)) continue;
+
+                    var tentativeGScore = x.G + x.GetCost(y);
+                    bool tentativeIsBetter;
+
+                    if (!openSet.Contains(y))
+                    {
+                        openSet.Add(y);
+                        tentativeIsBetter = true;
+                    }
+                    else
+                    {
+                        tentativeIsBetter = tentativeGScore < y.G;
+                    }
+
+                    if (tentativeIsBetter)
+                    {
+                        y.CameFromPoint = x;
+                        y.G = tentativeGScore;
+                        y.H = goal == null ? 0d : y.GetHeuristicCost(goal);
+                    }
+                }
+            }
+
+            if (goal != null && !pathFound) throw new Exception("Путь до конечной точки не найден");
+
+
+            return emc;
+        }
+
+        /// <summary>
+        /// Расчет оптимального пути до целевой точки
+        /// </summary>
+        /// <param name="start">Стартовая точка пути</param>
+        /// <param name="goal">Целевая точка пути</param>
+        /// <param name="allPoints">Все точки сети</param>
+        /// <returns>Оптимальный путь от стартовой точки до целевой</returns>
+        public static IList<Point> GetPath(Point start, Point goal, IEnumerable<Point> allPoints)
+        {
+            var emc = GetExpansionMatrix(start, goal, allPoints);
+            return ReconstructPath(emc.RealGoalPoint);
+        }
+
+        /// <summary>
+        /// Получение матриц распространения для набора стартовых точек
+        /// </summary>
+        /// <param name="startPoints">Набор стартовых точек</param>
+        /// <param name="allPoints">Все точки сети</param>
+        /// <returns>Матрицы распространения для стартовых точек</returns>
+        private static IDictionary<Point, ExpansionMatrixConteiner> GetExpansionMatrices(
+            IEnumerable<Point> startPoints, IEnumerable<Point> allPoints)
+        {
+            var result = new Dictionary<Point, ExpansionMatrixConteiner>();
+            foreach (var startPoint in startPoints)
+            {
+                result.Add(startPoint, GetExpansionMatrix(startPoint, null, allPoints));
+            }
+            return result;
+        }
+
+        /// <summary>
+        /// Получение точки с минимальным значением после суммирования матриц распространения
+        /// </summary>
+        /// <param name="expansionMatrices">Матрицы распространения</param>
+        /// <param name="allPoints">Все точки сети</param>
+        /// <returns>Точка с минимальной суммой</returns>
+        private static Point GetMinCostPoint(IDictionary<Point, ExpansionMatrixConteiner> expansionMatrices, IEnumerable<Point> allPoints)
+        {
+
+            var summCosts = new Dictionary<Point, double>();
+            foreach (var matrixPoint in allPoints)
+            {
+                summCosts.Add(matrixPoint, 0d);
+                foreach (var startPoint in expansionMatrices.Keys)
+                {
+                    summCosts[matrixPoint] += expansionMatrices[startPoint].ExpansionMatrix[matrixPoint];
+                }
+            }
+
+            Point cps = null;
+            var summCost = double.MaxValue;
+            foreach (var matrixPoint in summCosts.Keys)
+            {
+                if (summCosts[matrixPoint] < summCost)
+                {
+                    cps = matrixPoint;
+                    summCost = summCosts[matrixPoint];
+                }
+            }
+
+            return cps;
+        }
+
+        /// <summary>
+        /// Получение точки с минимальной стомостью прохода до (и от) целевой 
+        /// </summary>
+        /// <param name="expansionMatrices">Матрицы распространения</param>
+        /// <param name="notTraversedStartPoints">Список непройденных точек. Среди них будет проводиться поиск оптимальной</param>
+        /// <param name="collectionPoint">Целевая точка</param>
+        /// <returns>Точка с минимальной стомостью прохода</returns>
+        private static Point GetNearestPoint(
+            IDictionary<Point, ExpansionMatrixConteiner> expansionMatrices,
+            IEnumerable<Point> notTraversedStartPoints,
+            Point collectionPoint)
+        {
+            Point nearestPoint = null;
+            var minCost = double.MaxValue;
+
+            foreach (var point in notTraversedStartPoints)
+            {
+                if (expansionMatrices[point].ExpansionMatrix[collectionPoint] < minCost)
+                {
+                    nearestPoint = point;
+                    minCost = expansionMatrices[point].ExpansionMatrix[collectionPoint];
+                }
+            }
+
+            return nearestPoint;
+        }
+
+
+        /// <summary>
+        /// Поиск точки с минимальной эврестической функцией (F)
+        /// </summary>
+        /// <param name="points">Список точек</param>
+        /// <returns>Точка с минимальной эврестической функцией</returns>
+        private static Point GetPointWithMinF(HashSet<Point> points)
+        {
+            if (!points.Any())
+            {
+                throw new Exception("Пустой список точек");
+            }
+            var minF = double.MaxValue;
+            Point resultPoint = null;
+            foreach (var point in points)
+            {
+                if (point.F < minF)
+                {
+                    minF = point.F;
+                    resultPoint = point;
+                }
+            }
+
+            return resultPoint;
+        }
+
+        /// <summary>
+        /// Восстановление оптимального пути
+        /// </summary>
+        /// <param name="goal">Целевая точка</param>
+        /// <returns>Оптимальный путь до целевой точки</returns>
+        private static IList<Point> ReconstructPath(Point goal)
+        {
+            var resultList = new List<Point>();
+
+            var currentPoint = goal;
+
+            while (currentPoint != null)
+            {
+                resultList.Add(currentPoint);
+                currentPoint = currentPoint.CameFromPoint;
+            }
+
+            resultList.Reverse();
+
+            return resultList;
+        }
+
+        private static IList<Point> ReconstructPath(Point goal, ExpansionMatrixConteiner expansionMatrixConteiner, IEnumerable<Point> allPoints)
+        {
+            var path = new List<Point>() { goal };
+            var currentPoint = goal;
+            while (expansionMatrixConteiner.ExpansionMatrix[currentPoint] > 0)
+            {
+                Point closestNeighbour = null;
+                var minCost = double.MaxValue;
+                foreach (var neihgbour in currentPoint.GetNeighbors(allPoints))
+                {
+                    if (expansionMatrixConteiner.ExpansionMatrix[neihgbour] < minCost)
+                    {
+                        minCost = expansionMatrixConteiner.ExpansionMatrix[neihgbour];
+                        closestNeighbour = neihgbour;
+                    }
+                }
+                currentPoint = closestNeighbour;
+                path.Add(closestNeighbour);
+            }
+
+            return path;
+        }
+    }
+}
+
+
 class Player
 {
     const int RecruitmentCost = 10;
@@ -57,6 +381,8 @@ class Player
 
     static void Main(string[] args)
     {
+        
+
         string input;
         string[] inputs;
 
@@ -85,15 +411,38 @@ class Player
             int opponentGold = int.Parse(Console.ReadLine()); Console.Error.WriteLine(opponentGold);
             int opponentIncome = int.Parse(Console.ReadLine()); Console.Error.WriteLine(opponentIncome);
 
+            var table = new AStarPoint[Size, Size];
+            var allPoints = new List<AStarPoint>();
 
             var lines = new List<string>();
-            for (int i = 0; i < 12; i++)
+            for (int i = 0; i < Size; i++)
             {
                 string line = Console.ReadLine(); Console.Error.WriteLine(line);
+
+                for (var j = 0; j < line.Length; ++j)
+                {
+                    var aStarPoint = new AStarPoint()
+                        {X = j, Y = i, Weight = line[j] == '#' ? 10000 : 1};
+                    table[i, j] = aStarPoint;
+                    allPoints.Add(aStarPoint);
+                }
                 lines.Add(line);
             }
 
-
+            for (var i = 0; i < Size; ++i)
+            {
+                for (var j = 0; j < Size; ++j)
+                {
+                    var p = table[i, j];
+                    var neighbours = new List<AStarPoint>();
+                    if (i > 0) neighbours.Add(table[i - 1, j]);
+                    if (i < Size - 1) neighbours.Add(table[i + 1, j]);
+                    if (j > 0) neighbours.Add(table[i, j - 1]);
+                    if (j < Size - 1) neighbours.Add(table[i, j + 1]);
+                    p.Neighbors = neighbours;
+                }
+            }
+            
 
             bool isFire = true;
             var myBuildings = new List<Building>();
@@ -145,16 +494,30 @@ class Player
 
 
             var map = GetMap(lines, myBuildings, myUnits, oppBuilding, oppUnits);
+            var oppBase = oppBuilding.Single(b => b.BuildingType == 0);
             var command = "";
+
+            var endPoint = table[oppBase.Y, oppBase.X];
+            var pathes = new List<Tuple<Unit, IList<AStar.Point>>>();
+
             foreach (var myUnit in myUnits)
             {
-                var movePoint = GetMovePoint(myUnit, map, isFire);
+                var startPoint = table[myUnit.Y, myUnit.X];
+                var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints);
+                pathes.Add(new Tuple<Unit, IList<AStar.Point>>(myUnit, path));
+            }
 
-                if (movePoint != null)
+            pathes = pathes.OrderBy(p => p.Item2.Count).ToList();
+            foreach (var p in pathes)
+            {
+                var myUnit = p.Item1;
+                if (p.Item2.Count < 2) continue;
+                var step = p.Item2[1] as AStarPoint;
+                if (CanMove(myUnit, map[step.Y][step.X]))
                 {
-                    command += $"MOVE {myUnit.Id} {movePoint.X} {movePoint.Y};";
+                    command += $"MOVE {myUnit.Id} {step.X} {step.Y};";
                     map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
-                    map[movePoint.Y][movePoint.X] = new Unit(movePoint.X, movePoint.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
+                    map[step.Y][step.X] = new Unit(step.X, step.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
                 }
             }
 
@@ -180,7 +543,7 @@ class Player
             while (gold >= RecruitmentCost)
             {
                 var recruitmentPoints = GetRecruitmentPoints(map);
-                var bestRecruitmentPoint = GetBestRecruitmentPoint(recruitmentPoints, oppBuilding.Single(b => b.BuildingType == 0));
+                var bestRecruitmentPoint = GetBestRecruitmentPoint(recruitmentPoints, oppBase);
                 if (bestRecruitmentPoint != null)
                 {
                     command += $"TRAIN 1 {bestRecruitmentPoint.X} {bestRecruitmentPoint.Y};";
@@ -201,7 +564,7 @@ class Player
         return GetManhDist(p1.X, p1.Y, p2.X, p2.Y);
     }
 
-    static int GetManhDist(int x1, int y1, int x2, int y2)
+    public static int GetManhDist(int x1, int y1, int x2, int y2)
     {
         return Math.Abs(x1 - x2) + Math.Abs(y1 - y2);
     }
@@ -281,97 +644,97 @@ class Player
 
     }
 
-    static bool IsMyPoint(char c)
-    {
-        return c == 'o' || c == 'O';
-    }
+    //static bool IsMyPoint(char c)
+    //{
+    //    return c == 'o' || c == 'O';
+    //}
 
-    static Point GetMovePoint(Unit unit, IList<IList<Point>> map, bool isFire)
-    {
-        if (_rnd.NextDouble() > 0.5)
-        {
-            return GetHorizontalMove(unit, map, isFire) ??
-                   GetVerticalMove(unit, map, isFire);
-        }
+    //static Point GetMovePoint(Unit unit, IList<IList<Point>> map, bool isFire)
+    //{
+    //    if (_rnd.NextDouble() > 0.5)
+    //    {
+    //        return GetHorizontalMove(unit, map, isFire) ??
+    //               GetVerticalMove(unit, map, isFire);
+    //    }
 
-        return GetVerticalMove(unit, map, isFire) ??
-               GetHorizontalMove(unit, map, isFire);
+    //    return GetVerticalMove(unit, map, isFire) ??
+    //           GetHorizontalMove(unit, map, isFire);
 
-    }
+    //}
 
-    static Point GetMapMovePoint(Unit unit, Point point)
+    static bool CanMove(Unit unit, Point point)
     {
         if (point is Building pointBuilding)
         {
             if (pointBuilding.BuildingType == 0 || pointBuilding.BuildingType == 1) //base or mine
-                return point;
+                return true;
             //tower
             if (pointBuilding.Owner == 0)//my tower
-                return point;
+                return true;
             //opp tower
             if (unit.Level == 3)
-                return point;
+                return true;
         }
         else if (point is Unit pointUnit)
         {
             if (pointUnit.Owner != 0 && (unit.Level == 3 || unit.Level > pointUnit.Level))
-                return point;
+                return true;
         }
         else //нейтральная точка
         {
-            return point;
+            return true;
         }
 
-        return null;
+        return false;
     }
 
-    static Point GetHorizontalMove(Unit unit, IList<IList<Point>> map, bool isFire)
-    {
-        if (isFire)
-        {
-            if (unit.X < map[unit.Y].Count - 1 && map[unit.Y][unit.X + 1] != null)
-            {
-                var mapMovePoint = GetMapMovePoint(unit, map[unit.Y][unit.X + 1]);
-                if (mapMovePoint != null)
-                    return mapMovePoint;
-            }
-        }
-        else
-        {
-            if (unit.X > 0 && map[unit.Y][unit.X - 1] != null)
-            {
-                var mapMovePoint = GetMapMovePoint(unit, map[unit.Y][unit.X - 1]);
-                if (mapMovePoint != null)
-                    return mapMovePoint;
-            }
-        }
+    //static Point GetHorizontalMove(Unit unit, IList<IList<Point>> map, bool isFire)
+    //{
+    //    if (isFire)
+    //    {
+    //        if (unit.X < map[unit.Y].Count - 1 && map[unit.Y][unit.X + 1] != null)
+    //        {
+    //            var mapMovePoint = GetMapMovePoint(unit, map[unit.Y][unit.X + 1]);
+    //            if (mapMovePoint != null)
+    //                return mapMovePoint;
+    //        }
+    //    }
+    //    else
+    //    {
+    //        if (unit.X > 0 && map[unit.Y][unit.X - 1] != null)
+    //        {
+    //            var mapMovePoint = GetMapMovePoint(unit, map[unit.Y][unit.X - 1]);
+    //            if (mapMovePoint != null)
+    //                return mapMovePoint;
+    //        }
+    //    }
 
-        return null;
-    }
+    //    return null;
+    //}
 
-    static Point GetVerticalMove(Unit unit, IList<IList<Point>> map, bool isFire)
-    {
-        if (isFire)
-        {
-            if (unit.Y < map.Count - 1 && map[unit.Y + 1][unit.X] != null)
-            {
-                var mapMovePoint = GetMapMovePoint(unit, map[unit.Y + 1][unit.X]);
-                if (mapMovePoint != null)
-                    return mapMovePoint;
-            }
-        }
-        else
-        {
-            if (unit.Y > 0 && map[unit.Y - 1][unit.X] != null)
-            {
-                var mapMovePoint = GetMapMovePoint(unit, map[unit.Y - 1][unit.X]);
-                if (mapMovePoint != null)
-                    return mapMovePoint;
-            }
-        }
+    //static Point GetVerticalMove(Unit unit, IList<IList<Point>> map, bool isFire)
+    //{
+    //    if (isFire)
+    //    {
+    //        if (unit.Y < map.Count - 1 && map[unit.Y + 1][unit.X] != null)
+    //        {
+    //            var mapMovePoint = GetMapMovePoint(unit, map[unit.Y + 1][unit.X]);
+    //            if (mapMovePoint != null)
+    //                return mapMovePoint;
+    //        }
+    //    }
+    //    else
+    //    {
+    //        if (unit.Y > 0 && map[unit.Y - 1][unit.X] != null)
+    //        {
+    //            var mapMovePoint = GetMapMovePoint(unit, map[unit.Y - 1][unit.X]);
+    //            if (mapMovePoint != null)
+    //                return mapMovePoint;
+    //        }
+    //    }
 
-        return null;
-    }
+    //    return null;
+    //}
 
     static IList<IList<Point>> GetMap(IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits,
         IList<Building> oppBuildings, IList<Unit> oppUnits)
