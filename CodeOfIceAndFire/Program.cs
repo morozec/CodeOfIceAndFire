@@ -342,7 +342,12 @@ namespace AStar
 
 class Player
 {
-    const int RecruitmentCost = 10;
+    const int BIG_WEIGHT = 10000;
+
+    const int RecruitmentCost1 = 10;
+    const int RecruitmentCost2 = 20;
+    const int RecruitmentCost3 = 30;
+    const int TowerCost = 15;
     private const int Size = 12;
     private static Random _rnd = new Random();
 
@@ -431,7 +436,7 @@ class Player
                     if (line[j] == 'o' || line[j] == 'O') owner = 0;
                     else if (line[j] == 'x' || line[j] == 'X') owner = 1;
                     var aStarPoint = new AStarPoint()
-                        {X = j, Y = i, Weight = line[j] == '#' ? 10000 : 1, Owner = owner};
+                        {X = j, Y = i, Weight = line[j] == '#' ? BIG_WEIGHT : 1, Owner = owner};
                     table[i, j] = aStarPoint;
                     allPoints.Add(aStarPoint);
                 }
@@ -537,16 +542,30 @@ class Player
 
             UpdateMap(map, myBuildings.Single(b => b.BuildingType == 0));
 
-            while (gold >= RecruitmentCost)
+            while (gold >= RecruitmentCost1)
             {
                 var recruitmentPoints = GetRecruitmentPoints(map);
-                var bestRecruitmentPoint = GetBestRecruitmentPoint(recruitmentPoints, oppBase);
-                if (bestRecruitmentPoint != null)
+                var bestRecruitmentUnit =
+                    GetBestRecruitmentUnit(recruitmentPoints, oppBase, table, allPoints, map, gold);
+                if (bestRecruitmentUnit != null)
                 {
-                    command += $"TRAIN 1 {bestRecruitmentPoint.X} {bestRecruitmentPoint.Y};";
-                    map[bestRecruitmentPoint.Y][bestRecruitmentPoint.X] =
-                        new Unit(bestRecruitmentPoint.X, bestRecruitmentPoint.Y, 0, -1, 1);
-                    gold -= RecruitmentCost;
+                    command += $"TRAIN {bestRecruitmentUnit.Level} {bestRecruitmentUnit.X} {bestRecruitmentUnit.Y};";
+                    map[bestRecruitmentUnit.Y][bestRecruitmentUnit.X] = bestRecruitmentUnit;
+                    int cost;
+                    switch (bestRecruitmentUnit.Level)
+                    {
+                        case 3:
+                            cost = RecruitmentCost3;
+                            break;
+                        case 2:
+                            cost = RecruitmentCost2;
+                            break;
+                        default:
+                            cost = RecruitmentCost1;
+                            break;
+                    }
+
+                    gold -= cost;
                 }
                 else 
                     break;//иначе падаем в бесконечный цикл
@@ -635,17 +654,17 @@ class Player
 
                     if (point.Owner == 1)//opp point
                     {
-                        if (point is Building pointBuilding)
-                        {
-                            if (pointBuilding.BuildingType == 0 || pointBuilding.BuildingType == 1) //base or mine
-                                recruitmentPoints.Add(point);
-                            continue;//TODO: строить на чужих башнях
-                        }
+                        //if (point is Building pointBuilding)
+                        //{
+                        //    if (pointBuilding.BuildingType == 0 || pointBuilding.BuildingType == 1) //base or mine
+                        //        recruitmentPoints.Add(point);
+                        //    continue;//TODO: строить на чужих башнях
+                        //}
 
-                        if (point is Unit pointUnit)
-                        {
-                            continue;//TODO: строить на чужих солдатах
-                        }
+                        //if (point is Unit pointUnit)
+                        //{
+                        //    continue;//TODO: строить на чужих солдатах
+                        //}
 
                         recruitmentPoints.Add(point);
                     }
@@ -660,23 +679,143 @@ class Player
         return recruitmentPoints;
     }
 
-    static Point GetBestRecruitmentPoint(IList<Point> recruitmentPoints, Point oppBase)
+    static Unit GetBestRecruitmentUnit(IList<Point> recruitmentPoints, Building oppBase, AStarPoint[,] table, IList<AStarPoint> allPoints,
+        IList<IList<Point>> map,
+        int gold)
     {
-        Point bestPoint = null;
+        Unit bestUnit = null;
         int minDist = int.MaxValue;
+        int maxKillCount = 0;
+
+        var end = table[oppBase.Y, oppBase.X];
 
         foreach (var p in recruitmentPoints)
         {
-            var dist = GetManhDist(p, oppBase);
-            if (dist < minDist)
+            if (p is Building pBuilding && pBuilding.BuildingType == 2)//TODO: не будет строить рядом с башнями врага
             {
-                minDist = dist;
-                bestPoint = p;
+                if (gold < RecruitmentCost3) continue;
+            }
+            else if (p is Unit pUnit)
+            {
+                switch (pUnit.Level)
+                {
+                    case 3:
+                        if (gold < RecruitmentCost3)
+                            continue;
+                        break;
+                    case 2:
+                        if (gold < RecruitmentCost3)
+                            continue;
+                        break;
+                    case 1:
+                        if (gold < RecruitmentCost2)
+                            continue;
+                        break;
+                }
+            }
+
+            var killCount = GetKillCount(p, map, oppBase);
+            if (killCount < maxKillCount) continue;
+            
+
+            var start = table[p.Y, p.X];
+            var path = Calculator.GetPath(start, end, allPoints);
+
+            if (killCount > maxKillCount || path.Count < minDist)
+            {
+                maxKillCount = killCount;
+                minDist = path.Count;
+
+                if (p is Building pBuilding0 && pBuilding0.BuildingType == 2)
+                    bestUnit = new Unit(p.X, p.Y, 0, -1, 3);
+                else if (p is Unit pUnit0)
+                {
+                    var level = pUnit0.Level >= 2 ? 3 : 2;
+                    bestUnit = new Unit(p.X, p.Y, 0, -1, level);
+                }
+                else
+                    bestUnit = new Unit(p.X, p.Y, 0, -1, 1);
+
             }
         }
 
-        return bestPoint;
+        return bestUnit;
 
+    }
+
+
+    static int GetKillCount(Point step, IList<IList<Point>> map, Building oppBase)
+    {
+        var oppUnitsCount = 0;
+        for (var i = 0; i < map.Count; ++i)
+        {
+            for (var j = 0; j < map[i].Count; ++j)
+            {
+                if (map[i][j] is Unit mapUnit && mapUnit.Owner == 1)
+                    oppUnitsCount++;
+            }
+        }
+
+        var mapPoint = map[step.Y][step.X];
+        map[step.Y][step.X] = new Unit(step.X, step.Y, 0, -1, 1);
+
+        //BFS
+        var newOppUnitsCount = 0;
+
+
+        var queue = new Queue<Point>();
+        queue.Enqueue(oppBase);
+        var discoveredPoints = new HashSet<Point>() { oppBase };
+
+        while (queue.Count > 0)
+        {
+            var p = queue.Dequeue();
+            if (p is Unit pUnit && pUnit.Owner == 1)
+                newOppUnitsCount++;
+           
+            if (p.Y > 0)
+            {
+                var nP = map[p.Y - 1][p.X];
+                if (nP != null && nP.Owner == 1 && !discoveredPoints.Contains(nP))
+                {
+                    discoveredPoints.Add(nP);
+                    queue.Enqueue(nP);
+                }
+            }
+            if (p.Y < map.Count - 1)
+            {
+                var nP = map[p.Y + 1][p.X];
+                if (nP != null && nP.Owner == 1 && !discoveredPoints.Contains(nP))
+                {
+                    discoveredPoints.Add(nP);
+                    queue.Enqueue(nP);
+                }
+            }
+
+            if (p.X > 0)
+            {
+                var nP = map[p.Y][p.X - 1];
+                if (nP != null && nP.Owner == 1 && !discoveredPoints.Contains(nP))
+                {
+                    discoveredPoints.Add(nP);
+                    queue.Enqueue(nP);
+                }
+            }
+
+            if (p.X < map[p.Y].Count - 1)
+            {
+                var nP = map[p.Y][p.X + 1];
+                if (nP != null && nP.Owner == 1 && !discoveredPoints.Contains(nP))
+                {
+                    discoveredPoints.Add(nP);
+                    queue.Enqueue(nP);
+                }
+            }
+        }
+
+
+        map[step.Y][step.X] = mapPoint;
+        return oppUnitsCount - newOppUnitsCount;
     }
 
     //static bool IsMyPoint(char c)
