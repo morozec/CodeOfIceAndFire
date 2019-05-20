@@ -160,18 +160,19 @@ class Player
             }
 
             var newLines = GetNewLines(lines, myUnits);
-           
 
-            if (gold > RecruitmentCost)
+            var curRecruitmentPoints = new List<Point>();
+            while (gold >= RecruitmentCost)
             {
                 var nearNeutralPoints = GetNearNeutralPoints(newLines);
-                var recruitmentPoints = GetRecruitmentPoints(myPoints, nearNeutralPoints, myBuildings, myUnits);
-
+                var recruitmentPoints = GetRecruitmentPoints(myPoints, nearNeutralPoints, myBuildings, myUnits, curRecruitmentPoints);
 
                 var bestRecruitmentPoint = GetBestRecruitmentPoint(recruitmentPoints, oppBuilding.Single(b => b.BuildingType == 0));
                 if (bestRecruitmentPoint != null)
                 {
-                    command += $"TRAIN 1 {bestRecruitmentPoint.X} {bestRecruitmentPoint.Y}";
+                    command += $"TRAIN 1 {bestRecruitmentPoint.X} {bestRecruitmentPoint.Y};";
+                    curRecruitmentPoints.Add(bestRecruitmentPoint);
+                    gold -= RecruitmentCost;
                 }
             }
 
@@ -215,15 +216,22 @@ class Player
     }
 
     static IList<Point> GetRecruitmentPoints(
-        IList<Point> myPoints, IList<Point> nearNeutralPoints, IList<Building> myBuildings, IList<Unit> myUnits)
+        IList<Point> myPoints, IList<Point> nearNeutralPoints, IList<Building> myBuildings, IList<Unit> myUnits, IList<Point> curRecruitmentPoints)
     {
         var recruitmentPoints = new List<Point>();
         foreach (var p in myPoints)
         {
-            if (!myBuildings.Any(b => b.X == p.X && b.Y == p.Y) && !myUnits.Any(u => u.X == p.X && u.Y == p.Y))
+            if (!myBuildings.Any(b => b.X == p.X && b.Y == p.Y) && !myUnits.Any(u => u.X == p.X && u.Y == p.Y) &&
+                !curRecruitmentPoints.Any(rp => rp.X == p.X && rp.Y == p.Y))
                 recruitmentPoints.Add(p);
         }
-        recruitmentPoints.AddRange(nearNeutralPoints);
+
+        foreach (var p in nearNeutralPoints)
+        {
+            if (!curRecruitmentPoints.Any(rp => rp.X == p.X && rp.Y == p.Y))
+                recruitmentPoints.Add(p);
+        }
+
         return recruitmentPoints;
     }
 
