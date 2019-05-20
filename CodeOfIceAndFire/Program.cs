@@ -150,7 +150,7 @@ class Player
             var command = "";
             foreach (var myUnit in myUnits)
             {
-                var movePoint = GetMovePoint(myUnit, lines, myBuildings, myUnits, isFire);
+                var movePoint = GetMovePoint(myUnit, lines, myBuildings, myUnits, oppBuilding, oppUnits, isFire);
 
                 if (movePoint != null)
                 {
@@ -260,27 +260,33 @@ class Player
         return c == 'o' || c == 'O';
     }
 
-    static Point GetMovePoint(Unit unit, IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits, bool isFire)
+    static Point GetMovePoint(Unit unit, IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits,
+        IList<Building> oppBuildings, IList<Unit> oppUnits,
+        bool isFire)
     {
         if (_rnd.NextDouble() > 0.5)
         {
-            return GetHorizontalMove(unit, lines, myBuildings, myUnits, isFire) ??
-                   GetVerticalMove(unit, lines, myBuildings, myUnits, isFire);
+            return GetHorizontalMove(unit, lines, myBuildings, myUnits, oppBuildings, oppUnits, isFire) ??
+                   GetVerticalMove(unit, lines, myBuildings, myUnits, oppBuildings, oppUnits, isFire);
         }
 
-        return GetVerticalMove(unit, lines, myBuildings, myUnits, isFire) ??
-               GetHorizontalMove(unit, lines, myBuildings, myUnits, isFire);
+        return GetVerticalMove(unit, lines, myBuildings, myUnits, oppBuildings, oppUnits, isFire) ??
+               GetHorizontalMove(unit, lines, myBuildings, myUnits, oppBuildings, oppUnits, isFire);
 
     }
 
-    static Point GetHorizontalMove(Unit unit, IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits, bool isFire)
+    static Point GetHorizontalMove(Unit unit, IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits,
+        IList<Building> oppBuildings, IList<Unit> oppUnits,
+        bool isFire)
     {
         if (isFire)
         {
             if (unit.X < lines[unit.Y].Length - 1)
             {
                 if (lines[unit.Y][unit.X + 1] != '#' && !myBuildings.Any(b => b.X == unit.X + 1 && b.Y == unit.Y) &&
-                    !myUnits.Any(u => u.X == unit.X + 1 && u.Y == unit.Y))
+                    !myUnits.Any(u => u.X == unit.X + 1 && u.Y == unit.Y) &&
+                    !oppBuildings.Any(b => b.X == unit.X + 1 && b.Y == unit.Y) &&
+                    !oppUnits.Any(u => u.X == unit.X + 1 && u.Y == unit.Y))
                     return new Point(unit.X + 1, unit.Y, -1);
             }
         }
@@ -289,7 +295,9 @@ class Player
             if (unit.X > 0)
             {
                 if (lines[unit.Y][unit.X - 1] != '#' && !myBuildings.Any(b => b.X == unit.X - 1 && b.Y == unit.Y) &&
-                    !myUnits.Any(u => u.X == unit.X - 1 && u.Y == unit.Y))
+                    !myUnits.Any(u => u.X == unit.X - 1 && u.Y == unit.Y) &&
+                    !oppBuildings.Any(b => b.X == unit.X - 1 && b.Y == unit.Y) &&
+                    !oppUnits.Any(u => u.X == unit.X - 1 && u.Y == unit.Y))
                     return new Point(unit.X - 1, unit.Y, -1);
             }
         }
@@ -298,6 +306,7 @@ class Player
     }
 
     static Point GetVerticalMove(Unit unit, IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits,
+        IList<Building> oppBuildings, IList<Unit> oppUnits,
         bool isFire)
     {
         if (isFire)
@@ -305,7 +314,9 @@ class Player
             if (unit.Y < lines.Count - 1)
             {
                 if (lines[unit.Y + 1][unit.X] != '#' && !myBuildings.Any(b => b.X == unit.X && b.Y == unit.Y + 1) &&
-                    !myUnits.Any(u => u.X == unit.X && u.Y == unit.Y + 1))
+                    !myUnits.Any(u => u.X == unit.X && u.Y == unit.Y + 1) &&
+                    !oppBuildings.Any(b => b.X == unit.X && b.Y == unit.Y + 1) &&
+                    !oppUnits.Any(u => u.X == unit.X && u.Y == unit.Y + 1))
                     return new Point(unit.X, unit.Y + 1, -1);
             }
         }
@@ -314,7 +325,9 @@ class Player
             if (unit.Y > 0)
             {
                 if (lines[unit.Y - 1][unit.X] != '#' && !myBuildings.Any(b => b.X == unit.X && b.Y == unit.Y - 1) &&
-                    !myUnits.Any(u => u.X == unit.X && u.Y == unit.Y - 1))
+                    !myUnits.Any(u => u.X == unit.X && u.Y == unit.Y - 1) &&
+                    !oppBuildings.Any(b => b.X == unit.X && b.Y == unit.Y - 1) &&
+                    !oppUnits.Any(u => u.X == unit.X && u.Y == unit.Y - 1))
                     return new Point(unit.X, unit.Y - 1, -1);
             }
         }
