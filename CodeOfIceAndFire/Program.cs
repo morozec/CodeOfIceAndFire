@@ -165,7 +165,7 @@ class Player
             var curRecruitmentPoints = new List<Point>();
             while (gold >= RecruitmentCost)
             {
-                var nearNeutralPoints = GetNearNeutralPoints(newLines);
+                var nearNeutralPoints = GetNearNeutralPoints(newLines, oppUnits);
                 var recruitmentPoints = GetRecruitmentPoints(myPoints, nearNeutralPoints, myBuildings, myUnits, curRecruitmentPoints);
 
                 var bestRecruitmentPoint = GetBestRecruitmentPoint(recruitmentPoints, oppBuilding.Single(b => b.BuildingType == 0));
@@ -191,7 +191,7 @@ class Player
         return Math.Abs(x1 - x2) + Math.Abs(y1 - y2);
     }
 
-    static IList<Point> GetNearNeutralPoints(IList<string> lines)
+    static IList<Point> GetNearNeutralPoints(IList<string> lines, IList<Unit> oppUnits)
     {
         var nearNeutralPoints = new List<Point>();
         for (var i = 0; i < lines.Count; ++i)
@@ -200,6 +200,7 @@ class Player
             for (var j = 0; j < lines[i].Count(); ++j)
             {
                 if (line[j] != '.' && line[j] != 'x' && line[j] != 'X') continue;
+                if (oppUnits.Any(u => u.X == j && u.Y == i)) continue;
                
                 if (j > 0 && IsMyPoint(line[j - 1]) ||
                         j < line.Length - 1 && IsMyPoint(line[j + 1]) ||
@@ -285,7 +286,7 @@ class Player
             {
                 if (lines[unit.Y][unit.X + 1] != '#' && !myBuildings.Any(b => b.X == unit.X + 1 && b.Y == unit.Y) &&
                     !myUnits.Any(u => u.X == unit.X + 1 && u.Y == unit.Y) &&
-                    !oppBuildings.Any(b => b.X == unit.X + 1 && b.Y == unit.Y) &&
+                    //!oppBuildings.Any(b => b.X == unit.X + 1 && b.Y == unit.Y) &&
                     !oppUnits.Any(u => u.X == unit.X + 1 && u.Y == unit.Y))
                     return new Point(unit.X + 1, unit.Y, -1);
             }
@@ -296,7 +297,7 @@ class Player
             {
                 if (lines[unit.Y][unit.X - 1] != '#' && !myBuildings.Any(b => b.X == unit.X - 1 && b.Y == unit.Y) &&
                     !myUnits.Any(u => u.X == unit.X - 1 && u.Y == unit.Y) &&
-                    !oppBuildings.Any(b => b.X == unit.X - 1 && b.Y == unit.Y) &&
+                    //!oppBuildings.Any(b => b.X == unit.X - 1 && b.Y == unit.Y) &&
                     !oppUnits.Any(u => u.X == unit.X - 1 && u.Y == unit.Y))
                     return new Point(unit.X - 1, unit.Y, -1);
             }
@@ -315,7 +316,7 @@ class Player
             {
                 if (lines[unit.Y + 1][unit.X] != '#' && !myBuildings.Any(b => b.X == unit.X && b.Y == unit.Y + 1) &&
                     !myUnits.Any(u => u.X == unit.X && u.Y == unit.Y + 1) &&
-                    !oppBuildings.Any(b => b.X == unit.X && b.Y == unit.Y + 1) &&
+                    //!oppBuildings.Any(b => b.X == unit.X && b.Y == unit.Y + 1) &&
                     !oppUnits.Any(u => u.X == unit.X && u.Y == unit.Y + 1))
                     return new Point(unit.X, unit.Y + 1, -1);
             }
@@ -326,7 +327,7 @@ class Player
             {
                 if (lines[unit.Y - 1][unit.X] != '#' && !myBuildings.Any(b => b.X == unit.X && b.Y == unit.Y - 1) &&
                     !myUnits.Any(u => u.X == unit.X && u.Y == unit.Y - 1) &&
-                    !oppBuildings.Any(b => b.X == unit.X && b.Y == unit.Y - 1) &&
+                    //!oppBuildings.Any(b => b.X == unit.X && b.Y == unit.Y - 1) &&
                     !oppUnits.Any(u => u.X == unit.X && u.Y == unit.Y - 1))
                     return new Point(unit.X, unit.Y - 1, -1);
             }
