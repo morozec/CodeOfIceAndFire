@@ -175,6 +175,8 @@ class Player
                     curRecruitmentPoints.Add(bestRecruitmentPoint);
                     gold -= RecruitmentCost;
                 }
+                else 
+                    break;//иначе падаем в бесконечный цикл
             }
 
             Console.WriteLine(command != "" ? command : "WAIT");
