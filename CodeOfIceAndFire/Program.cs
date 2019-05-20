@@ -527,7 +527,7 @@ class Player
                 var myUnit = p.Item1;
                 if (p.Item2.Count < 2) continue;
                 var step = p.Item2[1] as AStarPoint;
-                if (CanMove(myUnit, map[step.Y][step.X]))
+                if (CanMove(myUnit, map[step.Y][step.X], map))
                 {
                     command += $"MOVE {myUnit.Id} {step.X} {step.Y};";
                     map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
@@ -654,18 +654,6 @@ class Player
 
                     if (point.Owner == 1)//opp point
                     {
-                        //if (point is Building pointBuilding)
-                        //{
-                        //    if (pointBuilding.BuildingType == 0 || pointBuilding.BuildingType == 1) //base or mine
-                        //        recruitmentPoints.Add(point);
-                        //    continue;//TODO: строить на чужих башнях
-                        //}
-
-                        //if (point is Unit pointUnit)
-                        //{
-                        //    continue;//TODO: строить на чужих солдатах
-                        //}
-
                         recruitmentPoints.Add(point);
                     }
                     else //neutral
@@ -691,9 +679,19 @@ class Player
 
         foreach (var p in recruitmentPoints)
         {
-            if (p is Building pBuilding && pBuilding.BuildingType == 2)//TODO: не будет строить рядом с башнями врага
+            int level = 1;
+
+            var hasNearOppTower = HasNearOppTower(p, map);
+            if (hasNearOppTower)
             {
                 if (gold < RecruitmentCost3) continue;
+                level = 3;
+            }
+
+            if (p is Building pBuilding && pBuilding.BuildingType == 2)
+            {
+                if (gold < RecruitmentCost3) continue;
+                level = 3;
             }
             else if (p is Unit pUnit)
             {
@@ -702,14 +700,17 @@ class Player
                     case 3:
                         if (gold < RecruitmentCost3)
                             continue;
+                        level = 3;
                         break;
                     case 2:
                         if (gold < RecruitmentCost3)
                             continue;
+                        level = 3;
                         break;
                     case 1:
                         if (gold < RecruitmentCost2)
                             continue;
+                        level = 2;
                         break;
                 }
             }
@@ -725,17 +726,7 @@ class Player
             {
                 maxKillCount = killCount;
                 minDist = path.Count;
-
-                if (p is Building pBuilding0 && pBuilding0.BuildingType == 2)
-                    bestUnit = new Unit(p.X, p.Y, 0, -1, 3);
-                else if (p is Unit pUnit0)
-                {
-                    var level = pUnit0.Level >= 2 ? 3 : 2;
-                    bestUnit = new Unit(p.X, p.Y, 0, -1, level);
-                }
-                else
-                    bestUnit = new Unit(p.X, p.Y, 0, -1, 1);
-
+                bestUnit = new Unit(p.X, p.Y, 0, -1, level);
             }
         }
 
@@ -836,8 +827,14 @@ class Player
 
     //}
 
-    static bool CanMove(Unit unit, Point point)
+    static bool CanMove(Unit unit, Point point, IList<IList<Point>> map)
     {
+        //opp tower
+        var hasNearOppTower = HasNearOppTower(point, map);
+        if (hasNearOppTower && unit.Level < 3)
+            return false;
+
+
         if (point is Building pointBuilding)
         {
             if (pointBuilding.BuildingType == 0 || pointBuilding.BuildingType == 1) //base or mine
@@ -860,6 +857,52 @@ class Player
         }
 
         return false;
+    }
+
+    static bool HasNearOppTower(Point point, IList<IList<Point>> map)
+    {
+        var hasNearOppTower = false;
+        if (point.Y > 0)
+        {
+            var np = map[point.Y - 1][point.X];
+            if (np != null && np.IsActive && (np is Building pBuilding0) &&
+                pBuilding0.BuildingType == 2)
+            {
+                hasNearOppTower = true;
+            }
+        }
+
+        if (point.Y < map.Count - 1)
+        {
+            var np = map[point.Y + 1][point.X];
+            if (np != null && np.IsActive && (np is Building pBuilding0) &&
+                pBuilding0.BuildingType == 2)
+            {
+                hasNearOppTower = true;
+            }
+        }
+
+        if (point.X > 0)
+        {
+            var np = map[point.Y][point.X - 1];
+            if (np != null && np.IsActive && (np is Building pBuilding0) &&
+                pBuilding0.BuildingType == 2)
+            {
+                hasNearOppTower = true;
+            }
+        }
+
+        if (point.X < map[point.Y].Count - 1)
+        {
+            var np = map[point.Y][point.X + 1];
+            if (np != null && np.IsActive && (np is Building pBuilding0) &&
+                pBuilding0.BuildingType == 2)
+            {
+                hasNearOppTower = true;
+            }
+        }
+
+        return hasNearOppTower;
     }
 
     //static Point GetHorizontalMove(Unit unit, IList<IList<Point>> map, bool isFire)
