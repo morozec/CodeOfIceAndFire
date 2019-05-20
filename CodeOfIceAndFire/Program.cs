@@ -590,12 +590,13 @@ class Player
                 if (point == null) continue;
                 if (point.Owner == 0)//my point
                 {
-                    if (point is Building pointBuilding)
-                        continue;
-                    if (point is Unit pointUnit)
-                        continue;
-                    if (point.IsActive)//is active
-                        recruitmentPoints.Add(point);
+                    continue;
+                    //if (point is Building pointBuilding)
+                    //    continue;
+                    //if (point is Unit pointUnit)
+                    //    continue;
+                    //if (point.IsActive)//is active
+                    //    recruitmentPoints.Add(point);
                 }
                 else
                 {
