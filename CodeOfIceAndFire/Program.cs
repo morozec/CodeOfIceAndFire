@@ -83,21 +83,12 @@ class Player
             int opponentGold = int.Parse(Console.ReadLine()); Console.Error.WriteLine(opponentGold);
             int opponentIncome = int.Parse(Console.ReadLine()); Console.Error.WriteLine(opponentIncome);
 
-            var myPoints = new List<Point>();
-            //var nearNeutralPoints = new List<Point>();
 
             var lines = new List<string>();
             for (int i = 0; i < 12; i++)
             {
                 string line = Console.ReadLine(); Console.Error.WriteLine(line);
                 lines.Add(line);
-
-                for (var j = 0; j < line.Length; ++j)
-                {
-                    if (IsMyPoint(line[j]))
-                        myPoints.Add(new Point(j, i, 0));
-
-                }
             }
 
 
@@ -105,7 +96,6 @@ class Player
             bool isFire = true;
             var myBuildings = new List<Building>();
             var oppBuilding = new List<Building>();
-            var neutralMines = new List<Building>();
 
             input = Console.ReadLine(); Console.Error.WriteLine(input);
             int buildingCount = int.Parse(input);
@@ -128,10 +118,6 @@ class Player
                 }
                 else if (owner == 1)
                     oppBuilding.Add(someBuilding);
-                else
-                {
-
-                }
                 
             }
 
@@ -155,20 +141,22 @@ class Player
                     oppUnits.Add(unit);
             }
 
+
+            var map = GetMap(lines, myBuildings, myUnits, oppBuilding, oppUnits);
             var command = "";
             foreach (var myUnit in myUnits)
             {
-                var movePoint = GetMovePoint(myUnit, lines, myBuildings, myUnits, oppBuilding, oppUnits, isFire);
+                var movePoint = GetMovePoint(myUnit, map, isFire);
 
                 if (movePoint != null)
                 {
                     command += $"MOVE {myUnit.Id} {movePoint.X} {movePoint.Y};";
-                    myUnit.X = movePoint.X;
-                    myUnit.Y = movePoint.Y;
+                    map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0);
+                    map[movePoint.Y][movePoint.X] = new Unit(movePoint.X, movePoint.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
                 }
             }
 
-            var newLines = GetNewLines(lines, myUnits);
+            //var newLines = GetNewLines(lines, myUnits);
 
             //var mines = myBuildings.Where(b => b.BuildingType == 1).ToList();
             //while (gold >= GetMineCost(mines.Count))
@@ -183,20 +171,19 @@ class Player
             //    else
             //        break;
             //}
+            
 
             
-            var nearNeutralPoints = GetNearNeutralPoints(newLines, oppUnits);
 
-            var curRecruitmentPoints = new List<Point>();
             while (gold >= RecruitmentCost)
             {
-                var recruitmentPoints = GetRecruitmentPoints(myPoints, nearNeutralPoints, myBuildings, myUnits, curRecruitmentPoints);
-
+                var recruitmentPoints = GetRecruitmentPoints(map, lines);
                 var bestRecruitmentPoint = GetBestRecruitmentPoint(recruitmentPoints, oppBuilding.Single(b => b.BuildingType == 0));
                 if (bestRecruitmentPoint != null)
                 {
                     command += $"TRAIN 1 {bestRecruitmentPoint.X} {bestRecruitmentPoint.Y};";
-                    curRecruitmentPoints.Add(bestRecruitmentPoint);
+                    map[bestRecruitmentPoint.Y][bestRecruitmentPoint.X] =
+                        new Unit(bestRecruitmentPoint.X, bestRecruitmentPoint.Y, 0, -1, 1);
                     gold -= RecruitmentCost;
                 }
                 else 
@@ -243,21 +230,56 @@ class Player
         return nearNeutralPoints;
     }
 
-    static IList<Point> GetRecruitmentPoints(
-        IList<Point> myPoints, IList<Point> nearNeutralPoints, IList<Building> myBuildings, IList<Unit> myUnits, IList<Point> curRecruitmentPoints)
+    static IList<Point> GetRecruitmentPoints(IList<IList<Point>> map, IList<string> lines)
     {
         var recruitmentPoints = new List<Point>();
-        foreach (var p in myPoints)
+        for (var i = 0; i < map.Count; ++i)
         {
-            if (!myBuildings.Any(b => b.X == p.X && b.Y == p.Y) && !myUnits.Any(u => u.X == p.X && u.Y == p.Y) &&
-                !curRecruitmentPoints.Any(rp => rp.X == p.X && rp.Y == p.Y))
-                recruitmentPoints.Add(p);
-        }
+            for (var j = 0; j < map[i].Count; ++j)
+            {
+                var point = map[i][j];
+                if (point == null) continue;
+                if (point.Owner == 0)//my point
+                {
+                    if (point is Building pointBuilding)
+                        continue;
+                    if (point is Unit pointUnit)
+                        continue;
+                    if (lines[i][j] != 'o')//is active
+                        recruitmentPoints.Add(point);
+                }
+                else
+                {
+                    var isBorderPoint = i > 0 && map[i - 1][j] != null && map[i - 1][j].Owner == 0 && lines[i-1][j] != 'o' ||
+                                        i < map.Count - 1 && map[i + 1][j] != null && map[i + 1][j].Owner == 0 && lines[i+1][j] != 'o' ||
+                                        j > 0 && map[i][j - 1] != null && map[i][j - 1].Owner == 0 && lines[i][j-1] != 'o' ||
+                                        j < map[i].Count - 1 && map[i][j + 1] != null && map[i][j + 1].Owner == 0 && lines[i][j+1] != 'o';
 
-        foreach (var p in nearNeutralPoints)
-        {
-            if (!curRecruitmentPoints.Any(rp => rp.X == p.X && rp.Y == p.Y))
-                recruitmentPoints.Add(p);
+                    if (!isBorderPoint)
+                        continue;
+
+                    if (point.Owner == 1)//opp point
+                    {
+                        if (point is Building pointBuilding)
+                        {
+                            if (pointBuilding.BuildingType == 0 || pointBuilding.BuildingType == 1) //base or mine
+                                recruitmentPoints.Add(point);
+                            continue;//TODO: строить на чужих башнях
+                        }
+
+                        if (point is Unit pointUnit)
+                        {
+                            continue;//TODO: строить на чужих солдатах
+                        }
+
+                        recruitmentPoints.Add(point);
+                    }
+                    else //neutral
+                    {
+                        recruitmentPoints.Add(point);
+                    }
+                }
+            }
         }
 
         return recruitmentPoints;
@@ -287,123 +309,150 @@ class Player
         return c == 'o' || c == 'O';
     }
 
-    static Point GetMovePoint(Unit unit, IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits,
-        IList<Building> oppBuildings, IList<Unit> oppUnits,
-        bool isFire)
+    static Point GetMovePoint(Unit unit, IList<IList<Point>> map, bool isFire)
     {
         if (_rnd.NextDouble() > 0.5)
         {
-            return GetHorizontalMove(unit, lines, myBuildings, myUnits, oppBuildings, oppUnits, isFire) ??
-                   GetVerticalMove(unit, lines, myBuildings, myUnits, oppBuildings, oppUnits, isFire);
+            return GetHorizontalMove(unit, map, isFire) ??
+                   GetVerticalMove(unit, map, isFire);
         }
 
-        return GetVerticalMove(unit, lines, myBuildings, myUnits, oppBuildings, oppUnits, isFire) ??
-               GetHorizontalMove(unit, lines, myBuildings, myUnits, oppBuildings, oppUnits, isFire);
+        return GetVerticalMove(unit, map, isFire) ??
+               GetHorizontalMove(unit, map, isFire);
 
     }
 
-    static Point GetHorizontalMove(Unit unit, IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits,
-        IList<Building> oppBuildings, IList<Unit> oppUnits,
-        bool isFire)
+    static Point GetMapMovePoint(Unit unit, Point point)
+    {
+        if (point is Building pointBuilding)
+        {
+            if (pointBuilding.BuildingType == 0 || pointBuilding.BuildingType == 1) //base or mine
+                return point;
+            //tower
+            if (pointBuilding.Owner == 0)//my tower
+                return point;
+            //opp tower
+            if (unit.Level == 3)
+                return point;
+        }
+        else if (point is Unit pointUnit)
+        {
+            if (pointUnit.Owner != 0 && (unit.Level == 3 || unit.Level > pointUnit.Level))
+                return point;
+        }
+        else //нейтральная точка
+        {
+            return point;
+        }
+
+        return null;
+    }
+
+    static Point GetHorizontalMove(Unit unit, IList<IList<Point>> map, bool isFire)
     {
         if (isFire)
         {
-            if (unit.X < lines[unit.Y].Length - 1)
+            if (unit.X < map[unit.Y].Count - 1 && map[unit.Y][unit.X + 1] != null)
             {
-                if (lines[unit.Y][unit.X + 1] != '#' && !myBuildings.Any(b => b.X == unit.X + 1 && b.Y == unit.Y) &&
-                    !myUnits.Any(u => u.X == unit.X + 1 && u.Y == unit.Y) &&
-                    //!oppBuildings.Any(b => b.X == unit.X + 1 && b.Y == unit.Y) &&
-                    !oppUnits.Any(u => u.X == unit.X + 1 && u.Y == unit.Y))
-                    return new Point(unit.X + 1, unit.Y, -1);
+                var mapMovePoint = GetMapMovePoint(unit, map[unit.Y][unit.X + 1]);
+                if (mapMovePoint != null)
+                    return mapMovePoint;
             }
         }
         else
         {
-            if (unit.X > 0)
+            if (unit.X > 0 && map[unit.Y][unit.X - 1] != null)
             {
-                if (lines[unit.Y][unit.X - 1] != '#' && !myBuildings.Any(b => b.X == unit.X - 1 && b.Y == unit.Y) &&
-                    !myUnits.Any(u => u.X == unit.X - 1 && u.Y == unit.Y) &&
-                    //!oppBuildings.Any(b => b.X == unit.X - 1 && b.Y == unit.Y) &&
-                    !oppUnits.Any(u => u.X == unit.X - 1 && u.Y == unit.Y))
-                    return new Point(unit.X - 1, unit.Y, -1);
+                var mapMovePoint = GetMapMovePoint(unit, map[unit.Y][unit.X - 1]);
+                if (mapMovePoint != null)
+                    return mapMovePoint;
             }
         }
 
         return null;
     }
 
-    static Point GetVerticalMove(Unit unit, IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits,
-        IList<Building> oppBuildings, IList<Unit> oppUnits,
-        bool isFire)
+    static Point GetVerticalMove(Unit unit, IList<IList<Point>> map, bool isFire)
     {
         if (isFire)
         {
-            if (unit.Y < lines.Count - 1)
+            if (unit.Y < map.Count - 1 && map[unit.Y + 1][unit.X] != null)
             {
-                if (lines[unit.Y + 1][unit.X] != '#' && !myBuildings.Any(b => b.X == unit.X && b.Y == unit.Y + 1) &&
-                    !myUnits.Any(u => u.X == unit.X && u.Y == unit.Y + 1) &&
-                    //!oppBuildings.Any(b => b.X == unit.X && b.Y == unit.Y + 1) &&
-                    !oppUnits.Any(u => u.X == unit.X && u.Y == unit.Y + 1))
-                    return new Point(unit.X, unit.Y + 1, -1);
+                var mapMovePoint = GetMapMovePoint(unit, map[unit.Y + 1][unit.X]);
+                if (mapMovePoint != null)
+                    return mapMovePoint;
             }
         }
         else
         {
-            if (unit.Y > 0)
+            if (unit.Y > 0 && map[unit.Y - 1][unit.X] != null)
             {
-                if (lines[unit.Y - 1][unit.X] != '#' && !myBuildings.Any(b => b.X == unit.X && b.Y == unit.Y - 1) &&
-                    !myUnits.Any(u => u.X == unit.X && u.Y == unit.Y - 1) &&
-                    //!oppBuildings.Any(b => b.X == unit.X && b.Y == unit.Y - 1) &&
-                    !oppUnits.Any(u => u.X == unit.X && u.Y == unit.Y - 1))
-                    return new Point(unit.X, unit.Y - 1, -1);
+                var mapMovePoint = GetMapMovePoint(unit, map[unit.Y - 1][unit.X]);
+                if (mapMovePoint != null)
+                    return mapMovePoint;
             }
         }
 
         return null;
     }
 
-
-    static IList<string> GetNewLines(IList<string> lines, IList<Unit> myUnits)
+    static IList<IList<Point>> GetMap(IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits,
+        IList<Building> oppBuildings, IList<Unit> oppUnits)
     {
-        var newLines = new List<string>();
+        var map = new List<IList<Point>>();
         for (var i = 0; i < lines.Count; ++i)
         {
-            var newLine = "";
+            var mapLine = new List<Point>();
             for (var j = 0; j < lines[i].Length; ++j)
             {
-                if (myUnits.Any(u => u.X == j && u.Y == i))
-                    newLine += 'O';
-                else
-                    newLine += lines[i][j];
+                Point point = null;
+                switch (lines[i][j])
+                {
+                    case 'o':
+                    case 'O':
+                        point = new Point(j, i, 0);
+                        break;
+                    case 'x':
+                    case 'X':
+                        point = new Point(j, i, 1);
+                        break;
+                    case '.':
+                        point = new Point(j, i, -1);
+                        break;
+                }
+
+                mapLine.Add(point);
             }
-            newLines.Add(newLine);
+            map.Add(mapLine);
         }
 
-        return newLines;
+        foreach (var b in myBuildings)
+        {
+            map[b.Y][b.X] = b;
+        }
+
+        foreach (var u in myUnits)
+        {
+            map[u.Y][u.X] = u;
+        }
+
+        foreach (var b in oppBuildings)
+        {
+            map[b.Y][b.X] = b;
+        }
+
+        foreach (var u in oppUnits)
+        {
+            map[u.Y][u.X] = u;
+        }
+
+        return map;
     }
+    
 
     static int GetMineCost(int mines)
     {
         return 20 + 4 * mines;
     }
-
-    static Point GetBestMinePosition(IList<string> lines, IList<Point> mineSpots, IList<Building> myMines, Building myBase, IList<Unit> myUnits)
-    {
-        Point bestMineSpot = null;
-        int minDist = int.MaxValue;
-
-        foreach (var ms in mineSpots)
-        {
-            if (lines[ms.Y][ms.X] != 'O' || myMines.Any(b => b.X == ms.X && b.Y == ms.Y) ||
-                myUnits.Any(u => u.X == ms.X && u.Y == ms.Y)) continue;
-            var dist = GetManhDist(ms, myBase);
-            if (dist < minDist)
-            {
-                minDist = dist;
-                bestMineSpot = ms;
-            }
-        }
-
-        return bestMineSpot;
-    }
+   
 }
