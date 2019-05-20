@@ -175,7 +175,7 @@ class Player
             //}
             
 
-            
+            UpdateMap(map, myBuildings.Single(b => b.BuildingType == 0));
 
             while (gold >= RecruitmentCost)
             {
@@ -428,6 +428,63 @@ class Player
         }
 
         return map;
+    }
+
+    static void UpdateMap(IList<IList<Point>> map, Building myBase)
+    {
+        //BFS
+        var queue = new Queue<Point>();
+        queue.Enqueue(myBase);
+        var discoveredPoints = new HashSet<Point>(){myBase};
+
+        while (queue.Count > 0)
+        {
+            var p = queue.Dequeue();
+            if (p.Owner == 0 && !p.IsActive)
+            {
+                p.IsActive = true;
+                Console.Error.WriteLine($"POINT {p.X} {p.Y} IS ACTIVATED");
+            }
+
+            if (p.Y > 0)
+            {
+                var nP = map[p.Y - 1][p.X];
+                if (nP != null && nP.Owner == 0 && !discoveredPoints.Contains(nP))
+                {
+                    discoveredPoints.Add(nP);
+                    queue.Enqueue(nP);
+                }
+            }
+            if (p.Y < map.Count - 1)
+            {
+                var nP = map[p.Y + 1][p.X];
+                if (nP != null && nP.Owner == 0 && !discoveredPoints.Contains(nP))
+                {
+                    discoveredPoints.Add(nP);
+                    queue.Enqueue(nP);
+                }
+            }
+
+            if (p.X > 0)
+            {
+                var nP = map[p.Y][p.X - 1];
+                if (nP != null && nP.Owner == 0 && !discoveredPoints.Contains(nP))
+                {
+                    discoveredPoints.Add(nP);
+                    queue.Enqueue(nP);
+                }
+            }
+
+            if (p.X < map[p.Y].Count - 1)
+            {
+                var nP = map[p.Y][p.X + 1];
+                if (nP != null && nP.Owner == 0 && !discoveredPoints.Contains(nP))
+                {
+                    discoveredPoints.Add(nP);
+                    queue.Enqueue(nP);
+                }
+            }
+        }
     }
     
 
