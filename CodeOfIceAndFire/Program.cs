@@ -48,6 +48,7 @@ namespace AStar
         public int Y { get; set; }
         public IEnumerable<AStarPoint> Neighbors { get; set; }
         public int Weight { get; set; }
+        public int Owner { get; set; }
 
         public override IEnumerable<Point> GetNeighbors(IEnumerable<Point> points)
         {
@@ -63,7 +64,12 @@ namespace AStar
         public override double GetCost(Point goal)
         {
             var aStarGoal = goal as AStarPoint;
-            return Weight + Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y) * aStarGoal.Weight;
+            var cost = Weight + Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y) * 10 * aStarGoal.Weight;
+            if (aStarGoal.Owner == 1)
+                cost -= 2;
+            else if (aStarGoal.Owner == -1)
+                cost -= 1;
+            return cost;
         }
 
         public override string ToString()
@@ -421,8 +427,11 @@ class Player
 
                 for (var j = 0; j < line.Length; ++j)
                 {
+                    var owner = -1;
+                    if (line[j] == 'o' || line[j] == 'O') owner = 0;
+                    else if (line[j] == 'x' || line[j] == 'X') owner = 1;
                     var aStarPoint = new AStarPoint()
-                        {X = j, Y = i, Weight = line[j] == '#' ? 10000 : 1};
+                        {X = j, Y = i, Weight = line[j] == '#' ? 10000 : 1, Owner = owner};
                     table[i, j] = aStarPoint;
                     allPoints.Add(aStarPoint);
                 }
@@ -498,17 +507,17 @@ class Player
             var command = "";
 
             var endPoint = table[oppBase.Y, oppBase.X];
-            var pathes = new List<Tuple<Unit, IList<AStar.Point>>>();
+            var paths = new List<Tuple<Unit, IList<AStar.Point>>>();
 
             foreach (var myUnit in myUnits)
             {
                 var startPoint = table[myUnit.Y, myUnit.X];
                 var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints);
-                pathes.Add(new Tuple<Unit, IList<AStar.Point>>(myUnit, path));
+                paths.Add(new Tuple<Unit, IList<AStar.Point>>(myUnit, path));
             }
 
-            pathes = pathes.OrderBy(p => p.Item2.Count).ToList();
-            foreach (var p in pathes)
+            paths = paths.OrderBy(p => p.Item2.Count).ToList();
+            foreach (var p in paths)
             {
                 var myUnit = p.Item1;
                 if (p.Item2.Count < 2) continue;
