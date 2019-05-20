@@ -197,7 +197,7 @@ class Player
             var line = lines[i];
             for (var j = 0; j < lines[i].Count(); ++j)
             {
-                if (line[j] != '.') continue;
+                if (line[j] != '.' && line[j] != 'x' && line[j] != 'X') continue;
                
                 if (j > 0 && IsMyPoint(line[j - 1]) ||
                         j < line.Length - 1 && IsMyPoint(line[j + 1]) ||
