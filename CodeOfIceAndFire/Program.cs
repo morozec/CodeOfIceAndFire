@@ -14,6 +14,7 @@ class Player
 {
     const int RecruitmentCost = 10;
     private const int Size = 12;
+    private static Random _rnd = new Random();
 
     class Point
     {
@@ -261,6 +262,19 @@ class Player
 
     static Point GetMovePoint(Unit unit, IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits, bool isFire)
     {
+        if (_rnd.NextDouble() > 0.5)
+        {
+            return GetHorizontalMove(unit, lines, myBuildings, myUnits, isFire) ??
+                   GetVerticalMove(unit, lines, myBuildings, myUnits, isFire);
+        }
+
+        return GetVerticalMove(unit, lines, myBuildings, myUnits, isFire) ??
+               GetHorizontalMove(unit, lines, myBuildings, myUnits, isFire);
+
+    }
+
+    static Point GetHorizontalMove(Unit unit, IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits, bool isFire)
+    {
         if (isFire)
         {
             if (unit.X < lines[unit.Y].Length - 1)
@@ -268,13 +282,6 @@ class Player
                 if (lines[unit.Y][unit.X + 1] != '#' && !myBuildings.Any(b => b.X == unit.X + 1 && b.Y == unit.Y) &&
                     !myUnits.Any(u => u.X == unit.X + 1 && u.Y == unit.Y))
                     return new Point(unit.X + 1, unit.Y, -1);
-            }
-
-            if (unit.Y < lines.Count - 1)
-            {
-                if (lines[unit.Y + 1][unit.X] != '#' && !myBuildings.Any(b => b.X == unit.X && b.Y == unit.Y + 1) &&
-                    !myUnits.Any(u => u.X == unit.X && u.Y == unit.Y + 1))
-                    return new Point(unit.X, unit.Y + 1, -1);
             }
         }
         else
@@ -285,7 +292,25 @@ class Player
                     !myUnits.Any(u => u.X == unit.X - 1 && u.Y == unit.Y))
                     return new Point(unit.X - 1, unit.Y, -1);
             }
+        }
 
+        return null;
+    }
+
+    static Point GetVerticalMove(Unit unit, IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits,
+        bool isFire)
+    {
+        if (isFire)
+        {
+            if (unit.Y < lines.Count - 1)
+            {
+                if (lines[unit.Y + 1][unit.X] != '#' && !myBuildings.Any(b => b.X == unit.X && b.Y == unit.Y + 1) &&
+                    !myUnits.Any(u => u.X == unit.X && u.Y == unit.Y + 1))
+                    return new Point(unit.X, unit.Y + 1, -1);
+            }
+        }
+        else
+        {
             if (unit.Y > 0)
             {
                 if (lines[unit.Y - 1][unit.X] != '#' && !myBuildings.Any(b => b.X == unit.X && b.Y == unit.Y - 1) &&
