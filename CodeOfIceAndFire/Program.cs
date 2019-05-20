@@ -58,6 +58,8 @@ class Player
         string input;
         string[] inputs;
 
+        var mineSpots = new List<Point>();
+
         input = Console.ReadLine(); Console.Error.WriteLine(input);
         int numberMineSpots = int.Parse(input);
         for (int i = 0; i < numberMineSpots; i++)
@@ -66,6 +68,7 @@ class Player
             inputs = input.Split(' ');
             int x = int.Parse(inputs[0]);
             int y = int.Parse(inputs[1]);
+            mineSpots.Add(new Point(x, y,-1));
         }
 
         // game loop
@@ -102,6 +105,7 @@ class Player
             bool isFire = true;
             var myBuildings = new List<Building>();
             var oppBuilding = new List<Building>();
+            var neutralMines = new List<Building>();
 
             input = Console.ReadLine(); Console.Error.WriteLine(input);
             int buildingCount = int.Parse(input);
@@ -122,8 +126,12 @@ class Player
                     if (buildingType == 0 && x != 0 && y != 0)
                         isFire = false;
                 }
-                else
+                else if (owner == 1)
                     oppBuilding.Add(someBuilding);
+                else
+                {
+
+                }
                 
             }
 
@@ -162,10 +170,26 @@ class Player
 
             var newLines = GetNewLines(lines, myUnits);
 
+            var mines = myBuildings.Where(b => b.BuildingType == 1).ToList();
+            while (gold >= GetMineCost(mines.Count))
+            {
+                var bmp = GetBestMinePosition(newLines, mineSpots, mines, myBuildings.Single(b => b.BuildingType == 0), myUnits);
+                if (bmp != null)
+                {
+                    command += $"BUILD MINE {bmp.X} {bmp.Y};";
+                    mines.Add(new Building(bmp.X, bmp.Y, 0, 1));
+                    gold -= GetMineCost(mines.Count);
+                }
+                else
+                    break;
+            }
+
+            
+            var nearNeutralPoints = GetNearNeutralPoints(newLines, oppUnits);
+
             var curRecruitmentPoints = new List<Point>();
             while (gold >= RecruitmentCost)
             {
-                var nearNeutralPoints = GetNearNeutralPoints(newLines, oppUnits);
                 var recruitmentPoints = GetRecruitmentPoints(myPoints, nearNeutralPoints, myBuildings, myUnits, curRecruitmentPoints);
 
                 var bestRecruitmentPoint = GetBestRecruitmentPoint(recruitmentPoints, oppBuilding.Single(b => b.BuildingType == 0));
@@ -355,5 +379,30 @@ class Player
         }
 
         return newLines;
+    }
+
+    static int GetMineCost(int mines)
+    {
+        return 20 + 4 * mines;
+    }
+
+    static Point GetBestMinePosition(IList<string> lines, IList<Point> mineSpots, IList<Building> myMines, Building myBase, IList<Unit> myUnits)
+    {
+        Point bestMineSpot = null;
+        int minDist = int.MaxValue;
+
+        foreach (var ms in mineSpots)
+        {
+            if (lines[ms.Y][ms.X] != 'O' || myMines.Any(b => b.X == ms.X && b.Y == ms.Y) ||
+                myUnits.Any(u => u.X == ms.X && u.Y == ms.Y)) continue;
+            var dist = GetManhDist(ms, myBase);
+            if (dist < minDist)
+            {
+                minDist = dist;
+                bestMineSpot = ms;
+            }
+        }
+
+        return bestMineSpot;
     }
 }
