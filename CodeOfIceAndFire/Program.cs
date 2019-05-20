@@ -170,19 +170,19 @@ class Player
 
             var newLines = GetNewLines(lines, myUnits);
 
-            var mines = myBuildings.Where(b => b.BuildingType == 1).ToList();
-            while (gold >= GetMineCost(mines.Count))
-            {
-                var bmp = GetBestMinePosition(newLines, mineSpots, mines, myBuildings.Single(b => b.BuildingType == 0), myUnits);
-                if (bmp != null)
-                {
-                    command += $"BUILD MINE {bmp.X} {bmp.Y};";
-                    mines.Add(new Building(bmp.X, bmp.Y, 0, 1));
-                    gold -= GetMineCost(mines.Count);
-                }
-                else
-                    break;
-            }
+            //var mines = myBuildings.Where(b => b.BuildingType == 1).ToList();
+            //while (gold >= GetMineCost(mines.Count))
+            //{
+            //    var bmp = GetBestMinePosition(newLines, mineSpots, mines, myBuildings.Single(b => b.BuildingType == 0), myUnits);
+            //    if (bmp != null)
+            //    {
+            //        command += $"BUILD MINE {bmp.X} {bmp.Y};";
+            //        mines.Add(new Building(bmp.X, bmp.Y, 0, 1));
+            //        gold -= GetMineCost(mines.Count);
+            //    }
+            //    else
+            //        break;
+            //}
 
             
             var nearNeutralPoints = GetNearNeutralPoints(newLines, oppUnits);
@@ -361,6 +361,7 @@ class Player
 
         return null;
     }
+
 
     static IList<string> GetNewLines(IList<string> lines, IList<Unit> myUnits)
     {
