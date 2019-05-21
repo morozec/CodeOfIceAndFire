@@ -1028,7 +1028,10 @@ class Player
 
 
         map[step.Y][step.X] = mapPoint;
-        return oppUnitsCount - newOppUnitsCount;
+        var killCount = oppUnitsCount - newOppUnitsCount;
+        if (mapPoint != null && mapPoint.Owner == 1 && mapPoint is Building building && building.BuildingType == 2)
+            killCount++; //kill opp tower
+        return killCount;
     }
 
     //static bool IsMyPoint(char c)
