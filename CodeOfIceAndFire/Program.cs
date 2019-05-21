@@ -898,7 +898,7 @@ class Player
                 (n is Unit || n is Building))
                 continue;
             if (mines.Any(m => m.X == n.X && m.Y == n.Y)) continue;
-            
+            if (GetManhDist(mostDangerousOppUnit, myBase) <= GetManhDist(n, myBase)) continue; //нет смысла строить башню сзади
            
             
             var myPointsCover = 0;
