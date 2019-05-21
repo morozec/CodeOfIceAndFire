@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.Net;
 using System.Runtime.Remoting.Channels;
 using AStar;
+using MapPoints;
+
 
 /**
  * Auto-generated code below aims at helping you parse
@@ -16,7 +18,7 @@ using AStar;
 
 namespace AStar
 {
-    public abstract class Point : IComparable<Point>
+    public abstract class APoint : IComparable<APoint>
     {
         public double G { get; set; }
         public double H { get; set; }
@@ -29,22 +31,24 @@ namespace AStar
             }
         }
 
-        public Point CameFromPoint { get; set; }
+        public APoint CameFromPoint { get; set; }
 
-        public abstract IEnumerable<Point> GetNeighbors(IEnumerable<Point> points);
+        public abstract IEnumerable<APoint> GetNeighbors(IEnumerable<APoint> points);
 
-        public abstract double GetHeuristicCost(Point goal);
+        public abstract double GetHeuristicCost(APoint goal);
 
-        public abstract double GetCost(Point goal);
+        public abstract double GetCost(APoint goal, int unitLevel, IList<IList<Point>> map);
 
-        public int CompareTo(Point other)
+        public int CompareTo(APoint other)
         {
             return -F.CompareTo(other.F);
         }
     }
 
-    public class AStarPoint : Point
+    public class AStarPoint : APoint
     {
+        const int BIG_WEIGHT = 10000;
+
         public int X { get; set; }
         public int Y { get; set; }
         public IEnumerable<AStarPoint> Neighbors { get; set; }
@@ -52,20 +56,23 @@ namespace AStar
         public int Owner { get; set; }
         public bool IsMySolder { get; set; }
 
-        public override IEnumerable<Point> GetNeighbors(IEnumerable<Point> points)
+        public override IEnumerable<APoint> GetNeighbors(IEnumerable<APoint> points)
         {
             return Neighbors;
         }
 
-        public override double GetHeuristicCost(Point goal)
+        public override double GetHeuristicCost(APoint goal)
         {
             var aStarGoal = goal as AStarPoint;
             return Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y);
         }
 
-        public override double GetCost(Point goal)
+        public override double GetCost(APoint goal, int unitLevel, IList<IList<Point>> map)
         {
             var aStarGoal = goal as AStarPoint;
+            if (unitLevel < 3 && Player.IsTowerInfluenceCell(aStarGoal.X, aStarGoal.Y, map, 1))
+                return BIG_WEIGHT;
+
             double cost = Weight + Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y) * aStarGoal.Weight;
             if (aStarGoal.Owner == 1)
                 cost -= 0.1;
@@ -92,10 +99,10 @@ namespace AStar
         /// <summary>
         /// Стоимости прохода до точек сети
         /// </summary>
-        public IDictionary<Point, double> ExpansionMatrix { get; set; }
+        public IDictionary<APoint, double> ExpansionMatrix { get; set; }
 
 
-        public Point RealGoalPoint { get; set; }
+        public APoint RealGoalPoint { get; set; }
 
         ///// <summary>
         ///// Оптимальные пути прохода до точек сети
@@ -112,7 +119,8 @@ namespace AStar
         /// <param name="goal">Целевая точка. Если null, то матрица распространения рассчитывается от стартовой точки до всех остальных точек сети</param>
         /// <param name="allPoints">Все точки сети</param>
         /// <returns>Матрица распространения</returns>
-        private static ExpansionMatrixConteiner GetExpansionMatrix(Point start, Point goal, IEnumerable<Point> allPoints)
+        private static ExpansionMatrixConteiner GetExpansionMatrix(APoint start, APoint goal, IEnumerable<APoint> allPoints,
+            int unitLevel, IList<IList<Point>> map )
         {
             foreach (var point in allPoints)
             {
@@ -121,12 +129,12 @@ namespace AStar
 
             var emc = new ExpansionMatrixConteiner
             {
-                ExpansionMatrix = new Dictionary<Point, double>(),
+                ExpansionMatrix = new Dictionary<APoint, double>(),
                 //Path =  new Dictionary<Point, IList<Point>>()
             };
 
-            var closedSet = new HashSet<Point>();
-            var openSet = new HashSet<Point> { start };
+            var closedSet = new HashSet<APoint>();
+            var openSet = new HashSet<APoint> { start };
 
             start.G = 0d;
             start.H = goal == null ? 0d : start.GetHeuristicCost(goal);
@@ -153,7 +161,7 @@ namespace AStar
                 {
                     if (closedSet.Contains(y)) continue;
 
-                    var tentativeGScore = x.G + x.GetCost(y);
+                    var tentativeGScore = x.G + x.GetCost(y,unitLevel, map);
                     bool tentativeIsBetter;
 
                     if (!openSet.Contains(y))
@@ -188,28 +196,12 @@ namespace AStar
         /// <param name="goal">Целевая точка пути</param>
         /// <param name="allPoints">Все точки сети</param>
         /// <returns>Оптимальный путь от стартовой точки до целевой</returns>
-        public static IList<Point> GetPath(Point start, Point goal, IEnumerable<Point> allPoints)
+        public static IList<APoint> GetPath(APoint start, APoint goal, IEnumerable<APoint> allPoints, int unitLevel, IList<IList<Point>> map)
         {
-            var emc = GetExpansionMatrix(start, goal, allPoints);
+            var emc = GetExpansionMatrix(start, goal, allPoints, unitLevel, map);
             return ReconstructPath(emc.RealGoalPoint);
         }
-
-        /// <summary>
-        /// Получение матриц распространения для набора стартовых точек
-        /// </summary>
-        /// <param name="startPoints">Набор стартовых точек</param>
-        /// <param name="allPoints">Все точки сети</param>
-        /// <returns>Матрицы распространения для стартовых точек</returns>
-        private static IDictionary<Point, ExpansionMatrixConteiner> GetExpansionMatrices(
-            IEnumerable<Point> startPoints, IEnumerable<Point> allPoints)
-        {
-            var result = new Dictionary<Point, ExpansionMatrixConteiner>();
-            foreach (var startPoint in startPoints)
-            {
-                result.Add(startPoint, GetExpansionMatrix(startPoint, null, allPoints));
-            }
-            return result;
-        }
+        
 
         /// <summary>
         /// Получение точки с минимальным значением после суммирования матриц распространения
@@ -217,10 +209,10 @@ namespace AStar
         /// <param name="expansionMatrices">Матрицы распространения</param>
         /// <param name="allPoints">Все точки сети</param>
         /// <returns>Точка с минимальной суммой</returns>
-        private static Point GetMinCostPoint(IDictionary<Point, ExpansionMatrixConteiner> expansionMatrices, IEnumerable<Point> allPoints)
+        private static APoint GetMinCostPoint(IDictionary<APoint, ExpansionMatrixConteiner> expansionMatrices, IEnumerable<APoint> allPoints)
         {
 
-            var summCosts = new Dictionary<Point, double>();
+            var summCosts = new Dictionary<APoint, double>();
             foreach (var matrixPoint in allPoints)
             {
                 summCosts.Add(matrixPoint, 0d);
@@ -230,7 +222,7 @@ namespace AStar
                 }
             }
 
-            Point cps = null;
+            APoint cps = null;
             var summCost = double.MaxValue;
             foreach (var matrixPoint in summCosts.Keys)
             {
@@ -251,12 +243,12 @@ namespace AStar
         /// <param name="notTraversedStartPoints">Список непройденных точек. Среди них будет проводиться поиск оптимальной</param>
         /// <param name="collectionPoint">Целевая точка</param>
         /// <returns>Точка с минимальной стомостью прохода</returns>
-        private static Point GetNearestPoint(
-            IDictionary<Point, ExpansionMatrixConteiner> expansionMatrices,
-            IEnumerable<Point> notTraversedStartPoints,
-            Point collectionPoint)
+        private static APoint GetNearestPoint(
+            IDictionary<APoint, ExpansionMatrixConteiner> expansionMatrices,
+            IEnumerable<APoint> notTraversedStartPoints,
+            APoint collectionPoint)
         {
-            Point nearestPoint = null;
+            APoint nearestPoint = null;
             var minCost = double.MaxValue;
 
             foreach (var point in notTraversedStartPoints)
@@ -277,14 +269,14 @@ namespace AStar
         /// </summary>
         /// <param name="points">Список точек</param>
         /// <returns>Точка с минимальной эврестической функцией</returns>
-        private static Point GetPointWithMinF(HashSet<Point> points)
+        private static APoint GetPointWithMinF(HashSet<APoint> points)
         {
             if (!points.Any())
             {
                 throw new Exception("Пустой список точек");
             }
             var minF = double.MaxValue;
-            Point resultPoint = null;
+            APoint resultPoint = null;
             foreach (var point in points)
             {
                 if (point.F < minF)
@@ -302,9 +294,9 @@ namespace AStar
         /// </summary>
         /// <param name="goal">Целевая точка</param>
         /// <returns>Оптимальный путь до целевой точки</returns>
-        private static IList<Point> ReconstructPath(Point goal)
+        private static IList<APoint> ReconstructPath(APoint goal)
         {
-            var resultList = new List<Point>();
+            var resultList = new List<APoint>();
 
             var currentPoint = goal;
 
@@ -319,13 +311,13 @@ namespace AStar
             return resultList;
         }
 
-        private static IList<Point> ReconstructPath(Point goal, ExpansionMatrixConteiner expansionMatrixConteiner, IEnumerable<Point> allPoints)
+        private static IList<APoint> ReconstructPath(APoint goal, ExpansionMatrixConteiner expansionMatrixConteiner, IEnumerable<APoint> allPoints)
         {
-            var path = new List<Point>() { goal };
+            var path = new List<APoint>() { goal };
             var currentPoint = goal;
             while (expansionMatrixConteiner.ExpansionMatrix[currentPoint] > 0)
             {
-                Point closestNeighbour = null;
+                APoint closestNeighbour = null;
                 var minCost = double.MaxValue;
                 foreach (var neihgbour in currentPoint.GetNeighbors(allPoints))
                 {
@@ -345,18 +337,9 @@ namespace AStar
 }
 
 
-class Player
+namespace MapPoints
 {
-    const int BIG_WEIGHT = 10000;
-
-    const int RecruitmentCost1 = 10;
-    const int RecruitmentCost2 = 20;
-    const int RecruitmentCost3 = 30;
-    const int TowerCost = 15;
-    private const int Size = 12;
-    private static Random _rnd = new Random();
-
-    class Point
+    public class Point
     {
         public int X { get; set; }
         public int Y { get; set; }
@@ -370,7 +353,7 @@ class Player
             Owner = owner;
             IsActive = isActive;
         }
-       
+
     }
 
     class Building : Point
@@ -394,6 +377,21 @@ class Player
             Level = level;
         }
     }
+}
+
+
+class Player
+{
+    const int BIG_WEIGHT = 10000;
+
+    const int RecruitmentCost1 = 10;
+    const int RecruitmentCost2 = 20;
+    const int RecruitmentCost3 = 30;
+    const int TowerCost = 15;
+    private const int Size = 12;
+    private static Random _rnd = new Random();
+
+    
 
     static void Main(string[] args)
     {
@@ -527,7 +525,7 @@ class Player
             foreach (var myUnit in myUnits)
             {
                 var startPoint = table[myUnit.Y, myUnit.X];
-                var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints);
+                var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit.Level, map);
                 if (path.Count < 2) continue;
  
                 var isMySolder = false;
@@ -615,7 +613,11 @@ class Player
                 if (bestUnit == null || bestCcp == null)
                     break;
 
-                var bestPath = Calculator.GetPath(table[bestUnit.Y, bestUnit.X], table[bestCcp.Y, bestCcp.X], allPoints);
+                var bestPath = Calculator.GetPath(table[bestUnit.Y, bestUnit.X],
+                    table[bestCcp.Y, bestCcp.X],
+                    allPoints,
+                    bestUnit.Level,
+                    map);
                 
                 var bestStep = bestPath[1] as AStarPoint;
                 if (CanMove(bestUnit, map[bestStep.Y][bestStep.X], map))
@@ -789,15 +791,14 @@ class Player
         {
             int level = 1;
 
-            var hasNearOppTower = HasNearOppTower(p, map);
-            if (hasNearOppTower)
+            if (IsTowerInfluenceCell(p.X, p.Y, map, 1))
             {
                 if (gold < RecruitmentCost3) continue;
                 level = 3;
             }
             else
             {
-                if (p is Building pBuilding && pBuilding.BuildingType == 2)
+                if (IsTowerCell(p.X, p.Y, map, 1))
                 {
                     if (gold < RecruitmentCost3) continue;
                     level = 3;
@@ -848,7 +849,7 @@ class Player
             }
 
             var start = table[p.Y, p.X];
-            var path = Calculator.GetPath(start, end, allPoints);
+            var path = Calculator.GetPath(start, end, allPoints, 3, map);
 
             if (killCount > maxKillCount ||
                 killCount == maxKillCount && path.Count < minOppBaseDist)
@@ -910,8 +911,7 @@ class Player
                 if (nn == null) continue;
 
                 //no my towers near
-                if (GetMapNeighbours(map, nn, false).Any(nnn =>
-                    nnn is Building building && building.Owner == 0 && building.BuildingType == 2))
+                if (IsTowerInfluenceCell(nn.X, nn.Y, map, 0))
                 {
                     hasMyTowersNear = true;
                     break;
@@ -1017,7 +1017,7 @@ class Player
 
         map[step.Y][step.X] = mapPoint;
         var killCount = oppUnitsCount - newOppUnitsCount;
-        if (mapPoint != null && mapPoint.Owner == 1 && mapPoint is Building building && building.BuildingType == 2)
+        if (IsTowerCell(mapPoint.X, mapPoint.Y, map, 1))
             killCount++; //kill opp tower
         return killCount;
     }
@@ -1043,11 +1043,9 @@ class Player
     static bool CanMove(Unit unit, Point point, IList<IList<Point>> map)
     {
         //opp tower
-        var hasNearOppTower = HasNearOppTower(point, map);
-        if (hasNearOppTower && unit.Level < 3)
+        if (IsTowerInfluenceCell(point.X, point.Y, map, 1) && unit.Level < 3)
             return false;
-
-
+        
         if (point is Building pointBuilding)
         {
             if (pointBuilding.BuildingType == 0 || pointBuilding.BuildingType == 1) //base or mine
@@ -1071,53 +1069,7 @@ class Player
 
         return false;
     }
-
-    static bool HasNearOppTower(Point point, IList<IList<Point>> map)
-    {
-        var hasNearOppTower = false;
-        if (point.Y > 0)
-        {
-            var np = map[point.Y - 1][point.X];
-            if (np != null && np.IsActive && np.Owner == 1 && (np is Building pBuilding0) &&
-                pBuilding0.BuildingType == 2)
-            {
-                hasNearOppTower = true;
-            }
-        }
-
-        if (point.Y < map.Count - 1)
-        {
-            var np = map[point.Y + 1][point.X];
-            if (np != null && np.IsActive && np.Owner == 1 && (np is Building pBuilding0) &&
-                pBuilding0.BuildingType == 2)
-            {
-                hasNearOppTower = true;
-            }
-        }
-
-        if (point.X > 0)
-        {
-            var np = map[point.Y][point.X - 1];
-            if (np != null && np.IsActive && np.Owner == 1 && (np is Building pBuilding0) &&
-                pBuilding0.BuildingType == 2)
-            {
-                hasNearOppTower = true;
-            }
-        }
-
-        if (point.X < map[point.Y].Count - 1)
-        {
-            var np = map[point.Y][point.X + 1];
-            if (np != null && np.IsActive && np.Owner == 1 && (np is Building pBuilding0) &&
-                pBuilding0.BuildingType == 2)
-            {
-                hasNearOppTower = true;
-            }
-        }
-
-        return hasNearOppTower;
-    }
-
+    
     //static Point GetHorizontalMove(Unit unit, IList<IList<Point>> map, bool isFire)
     //{
     //    if (isFire)
@@ -1320,6 +1272,27 @@ class Player
         }
 
         return neighbours;
+    }
+
+    public static bool IsTowerCell(int x, int y, IList<IList<Point>> map, int owner)
+    {
+        return map[y][x] != null && map[y][x].IsActive && map[y][x].Owner == owner && map[y][x] is Building building &&
+               building.BuildingType == 2;
+    }
+
+    public static bool IsTowerInfluenceCell(int x, int y, IList<IList<Point>> map, int owner)
+    {
+        if (map[y][x] == null)
+            return false;
+
+        if (IsTowerCell(x, y, map, owner))
+            return true;
+
+        var neighbours = GetMapNeighbours(map, map[y][x], false);
+        foreach (var n in neighbours.Where(n => n != null))
+            if (IsTowerCell(n.X, n.Y, map, owner))
+                return true;
+        return false;
     }
    
 }
