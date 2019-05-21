@@ -519,14 +519,14 @@ class Player
             var command = "";
 
             var endPoint = table[oppBase.Y, oppBase.X];
-            var paths = new List<Tuple<Unit, IList<AStar.Point>>>();
 
+            myUnits = myUnits.OrderBy(u => GetManhDist(u, oppBase)).ToList();
             var noWayUnits = new List<Unit>();
             foreach (var myUnit in myUnits)
             {
                 var startPoint = table[myUnit.Y, myUnit.X];
                 var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints);
-               if (path.Count < 2) continue;
+                if (path.Count < 2) continue;
  
                 var isMySolder = false;
                 for (var i = 1; i < path.Count; ++i)
@@ -541,20 +541,10 @@ class Player
                 if (isMySolder)
                 {
                     noWayUnits.Add(myUnit);
+                    continue;
                 }
-                else
-                {
-                    paths.Add(new Tuple<Unit, IList<AStar.Point>>(myUnit, path));
-                }
-            }
 
-           
-            paths = paths.OrderBy(p => p.Item2.Count).ToList();
-            foreach (var p in paths)
-            {
-                var myUnit = p.Item1;
-                
-                var step = p.Item2[1] as AStarPoint;
+                var step =path[1] as AStarPoint;
                 if (CanMove(myUnit, map[step.Y][step.X], map))
                 {
                     command += $"MOVE {myUnit.Id} {step.X} {step.Y};";
@@ -565,7 +555,27 @@ class Player
                     table[myUnit.Y, myUnit.X].IsMySolder = false;
                     table[step.Y, step.X].IsMySolder = true;
                 }
+
             }
+
+           
+            //paths = paths.OrderBy(p => p.Item2.Count).ToList();
+            //foreach (var p in paths)
+            //{
+            //    var myUnit = p.Item1;
+                
+            //    var step = p.Item2[1] as AStarPoint;
+            //    if (CanMove(myUnit, map[step.Y][step.X], map))
+            //    {
+            //        command += $"MOVE {myUnit.Id} {step.X} {step.Y};";
+            //        map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
+            //        map[step.Y][step.X] = new Unit(step.X, step.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
+
+            //        table[step.Y, step.X].Owner = 0;
+            //        table[myUnit.Y, myUnit.X].IsMySolder = false;
+            //        table[step.Y, step.X].IsMySolder = true;
+            //    }
+            //}
 
 
             //если солдат не может дойти до чужой базы, он идет захватывать нейтральные точки
