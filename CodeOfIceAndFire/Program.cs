@@ -860,7 +860,7 @@ class Player
             }
         }
 
-        if (maxKillCount > 0 || gold < TowerCost)
+        if (maxKillCount > 1 || gold < TowerCost)
             return bestUnit;
 
         Unit mostDangerousOppUnit = null;
