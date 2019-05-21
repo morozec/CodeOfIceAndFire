@@ -49,6 +49,7 @@ namespace AStar
         public IEnumerable<AStarPoint> Neighbors { get; set; }
         public int Weight { get; set; }
         public int Owner { get; set; }
+        public bool IsMySolder { get; set; }
 
         public override IEnumerable<Point> GetNeighbors(IEnumerable<Point> points)
         {
@@ -64,11 +65,14 @@ namespace AStar
         public override double GetCost(Point goal)
         {
             var aStarGoal = goal as AStarPoint;
-            var cost = Weight + Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y) * 10 * aStarGoal.Weight;
-            if (aStarGoal.Owner == 1)
-                cost -= 2;
-            else if (aStarGoal.Owner == -1)
-                cost -= 1;
+            double cost = Weight + Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y) * aStarGoal.Weight;
+            //if (aStarGoal.Owner == 1)
+            //    cost -= 2;
+            if (aStarGoal.Owner == -1)
+                cost -= 0.1;
+            if (aStarGoal.IsMySolder)
+                cost += 10;
+
             return cost;
         }
 
@@ -436,7 +440,7 @@ class Player
                     if (line[j] == 'o' || line[j] == 'O') owner = 0;
                     else if (line[j] == 'x' || line[j] == 'X') owner = 1;
                     var aStarPoint = new AStarPoint()
-                        {X = j, Y = i, Weight = line[j] == '#' ? BIG_WEIGHT : 1, Owner = owner};
+                        {X = j, Y = i, Weight = line[j] == '#' ? BIG_WEIGHT : 1, Owner = owner, IsMySolder = false};
                     table[i, j] = aStarPoint;
                     allPoints.Add(aStarPoint);
                 }
@@ -501,7 +505,10 @@ class Player
 
                 var unit = new Unit(x, y, owner, unitId, level);
                 if (owner == 0)
+                {
                     myUnits.Add(unit);
+                    table[y, x].IsMySolder = true;
+                }
                 else
                     oppUnits.Add(unit);
             }
@@ -532,6 +539,10 @@ class Player
                     command += $"MOVE {myUnit.Id} {step.X} {step.Y};";
                     map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
                     map[step.Y][step.X] = new Unit(step.X, step.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
+
+                    table[step.Y, step.X].Owner = 0;
+                    table[myUnit.Y, myUnit.X].IsMySolder = false;
+                    table[step.Y, step.X].IsMySolder = true;
                 }
             }
 
