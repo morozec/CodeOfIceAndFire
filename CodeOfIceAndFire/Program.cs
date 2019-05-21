@@ -908,17 +908,27 @@ class Player
                 (n is Unit || n is Building))
                 continue;
             if (mines.Any(m => m.X == n.X && m.Y == n.Y)) continue;
-            //no my towers near
-            var nNeighbours = GetMapNeighbours(map, n, false);
-            if (nNeighbours.Any(nn => nn is Building building && building.BuildingType == 2))
-                continue;
-
+            
+           
+            
             var myPointsCover = 0;
             var myUnitsCover = 0;
-            
+
+            var hasMyTowersNear = false;
+
+            var nNeighbours = GetMapNeighbours(map, n, false);
             foreach (var nn in nNeighbours)
             {
                 if (nn == null) continue;
+
+                //no my towers near
+                if (GetMapNeighbours(map, nn, false).Any(nnn =>
+                    nnn is Building building && building.Owner == 0 && building.BuildingType == 2))
+                {
+                    hasMyTowersNear = true;
+                    break;
+                }
+
                 if (nn.Owner == 0)
                 {
                     myPointsCover++;
@@ -926,6 +936,8 @@ class Player
                         myUnitsCover++;
                 }
             }
+
+            if (hasMyTowersNear) continue;
 
             if (myPointsCover > maxMyPointsCover || myPointsCover == maxMyPointsCover && myUnitsCover > maxMyUnitsCover ||
                 myPointsCover == maxMyPointsCover && myUnitsCover == maxMyUnitsCover && GetManhDist(n, myBase) < minMyBaseDistCover)
