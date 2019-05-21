@@ -643,7 +643,7 @@ class Player
             {
                 var recruitmentPoints = GetRecruitmentPoints(map);
                 var bestRecruitmentPoint =
-                    GetBestRecruitmentPoint(recruitmentPoints, myBase, oppBase, table, allPoints, map, mineSpots,gold);
+                    GetBestRecruitmentPoint(recruitmentPoints, myBase, oppBase, table, allPoints, map, mineSpots,gold, income);
                 if (bestRecruitmentPoint != null)
                 {
                     if (bestRecruitmentPoint is Unit bestRecruitmentUnit)
@@ -652,20 +652,7 @@ class Player
                         command +=
                             $"TRAIN {bestRecruitmentUnit.Level} {bestRecruitmentUnit.X} {bestRecruitmentUnit.Y};";
                         map[bestRecruitmentUnit.Y][bestRecruitmentUnit.X] = bestRecruitmentUnit;
-                        int cost;
-                        switch (bestRecruitmentUnit.Level)
-                        {
-                            case 3:
-                                cost = RecruitmentCost3;
-                                break;
-                            case 2:
-                                cost = RecruitmentCost2;
-                                break;
-                            default:
-                                cost = RecruitmentCost1;
-                                break;
-                        }
-
+                        int cost = GetUnitCost(bestRecruitmentUnit.Level);
                         gold -= cost;
                     }
                     else if (bestRecruitmentPoint is Building bestRecruitmentBuilding)
@@ -775,10 +762,20 @@ class Player
         return recruitmentPoints;
     }
 
+    static int GetUnitCost(int level)
+    {
+        return level == 3 ? RecruitmentCost3 : level == 2 ? RecruitmentCost2 : RecruitmentCost1;
+    }
+
+    static int GetUnitUpkeep(int level)
+    {
+        return level == 3 ? 20 : level == 2 ? 4 : 1;
+    }
+
     static Point GetBestRecruitmentPoint(IList<Point> recruitmentPoints, Building myBase, Building oppBase,
         AStarPoint[,] table, IList<AStarPoint> allPoints,
         IList<IList<Point>> map, IList<Point> mines,
-        int gold)
+        int gold, int income)
     {
         Unit bestUnit = null;
         int maxKillCount = 0;
@@ -827,6 +824,10 @@ class Player
                     }
                 }
             }
+
+            var unitUpkeep = GetUnitUpkeep(level);
+            if (unitUpkeep > income)
+                continue;
 
             var killCount = GetKillCount(p, map, oppBase);
             if (killCount < maxKillCount) continue;
