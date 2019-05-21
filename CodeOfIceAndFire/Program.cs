@@ -37,7 +37,7 @@ namespace AStar
 
         public abstract double GetHeuristicCost(APoint goal);
 
-        public abstract double GetCost(APoint goal, int unitLevel, IList<IList<Point>> map);
+        public abstract double GetCost(APoint goal, Unit unit, IList<IList<Point>> map);
 
         public int CompareTo(APoint other)
         {
@@ -67,10 +67,10 @@ namespace AStar
             return Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y);
         }
 
-        public override double GetCost(APoint goal, int unitLevel, IList<IList<Point>> map)
+        public override double GetCost(APoint goal, Unit unit, IList<IList<Point>> map)
         {
             var aStarGoal = goal as AStarPoint;
-            if (unitLevel < 3 && Player.IsTowerInfluenceCell(aStarGoal.X, aStarGoal.Y, map, 1))
+            if (unit.Level < 3 && Player.IsTowerInfluenceCell(aStarGoal.X, aStarGoal.Y, map, unit.Owner == 0 ? 1 : 0))
                 return BIG_WEIGHT;
 
             double cost = Weight + Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y) * aStarGoal.Weight;
@@ -120,7 +120,7 @@ namespace AStar
         /// <param name="allPoints">Все точки сети</param>
         /// <returns>Матрица распространения</returns>
         private static ExpansionMatrixConteiner GetExpansionMatrix(APoint start, APoint goal, IEnumerable<APoint> allPoints,
-            int unitLevel, IList<IList<Point>> map )
+            Unit unit, IList<IList<Point>> map )
         {
             foreach (var point in allPoints)
             {
@@ -161,7 +161,7 @@ namespace AStar
                 {
                     if (closedSet.Contains(y)) continue;
 
-                    var tentativeGScore = x.G + x.GetCost(y,unitLevel, map);
+                    var tentativeGScore = x.G + x.GetCost(y,unit, map);
                     bool tentativeIsBetter;
 
                     if (!openSet.Contains(y))
@@ -196,9 +196,9 @@ namespace AStar
         /// <param name="goal">Целевая точка пути</param>
         /// <param name="allPoints">Все точки сети</param>
         /// <returns>Оптимальный путь от стартовой точки до целевой</returns>
-        public static IList<APoint> GetPath(APoint start, APoint goal, IEnumerable<APoint> allPoints, int unitLevel, IList<IList<Point>> map)
+        public static IList<APoint> GetPath(APoint start, APoint goal, IEnumerable<APoint> allPoints, Unit unit, IList<IList<Point>> map)
         {
-            var emc = GetExpansionMatrix(start, goal, allPoints, unitLevel, map);
+            var emc = GetExpansionMatrix(start, goal, allPoints, unit, map);
             return ReconstructPath(emc.RealGoalPoint);
         }
         
@@ -356,7 +356,7 @@ namespace MapPoints
 
     }
 
-    class Building : Point
+    public class Building : Point
     {
         public int BuildingType { get; set; }
 
@@ -366,7 +366,7 @@ namespace MapPoints
         }
     }
 
-    class Unit : Point
+    public class Unit : Point
     {
         public int Id { get; set; }
         public int Level { get; set; }
@@ -525,7 +525,7 @@ class Player
             foreach (var myUnit in myUnits)
             {
                 var startPoint = table[myUnit.Y, myUnit.X];
-                var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit.Level, map);
+                var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map);
                 if (path.Count < 2) continue;
  
                 var isMySolder = false;
@@ -616,7 +616,7 @@ class Player
                 var bestPath = Calculator.GetPath(table[bestUnit.Y, bestUnit.X],
                     table[bestCcp.Y, bestCcp.X],
                     allPoints,
-                    bestUnit.Level,
+                    bestUnit,
                     map);
                 
                 var bestStep = bestPath[1] as AStarPoint;
@@ -849,7 +849,7 @@ class Player
             }
 
             var start = table[p.Y, p.X];
-            var path = Calculator.GetPath(start, end, allPoints, 3, map);
+            var path = Calculator.GetPath(start, end, allPoints, new Unit(p.X, p.Y, 1, -1, 3), map);
 
             if (killCount > maxKillCount ||
                 killCount == maxKillCount && path.Count < minOppBaseDist)
@@ -870,11 +870,12 @@ class Player
             for (var j = 0; j < map[i].Count; ++j)
             {
                 var p = map[i][j];
-                if (p == null || p.Owner != 1 || !(p is Unit)) continue;
-                var dist = GetManhDist(p, myBase);
-                if (dist < minMyBaseDist)
+                if (p == null || p.Owner != 1 || !(p is Unit pUnit)) continue;
+                var path = Calculator.GetPath(table[p.Y, p.X], table[myBase.Y, myBase.X], allPoints, pUnit, map);
+
+                if (path.Count < minMyBaseDist)
                 {
-                    minMyBaseDist = dist;
+                    minMyBaseDist = path.Count;
                     mostDangerousOppUnit = p as Unit;
                 }
             }
@@ -933,7 +934,7 @@ class Player
                 maxMyPointsCover = myPointsCover;
                 maxMyUnitsCover = myUnitsCover;
                 minMyBaseDistCover = GetManhDist(n, myBase);
-                tower = new Building(n.X, n.Y, 1, 2);
+                tower = new Building(n.X, n.Y, 0, 2);
             }
 
         }
