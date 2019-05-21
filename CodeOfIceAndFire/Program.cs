@@ -521,18 +521,39 @@ class Player
             var endPoint = table[oppBase.Y, oppBase.X];
             var paths = new List<Tuple<Unit, IList<AStar.Point>>>();
 
+            var noWayUnits = new List<Unit>();
             foreach (var myUnit in myUnits)
             {
                 var startPoint = table[myUnit.Y, myUnit.X];
                 var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints);
-                paths.Add(new Tuple<Unit, IList<AStar.Point>>(myUnit, path));
+               if (path.Count < 2) continue;
+ 
+                var isMySolder = false;
+                for (var i = 1; i < path.Count; ++i)
+                {
+                    if ((path[i] as AStarPoint).IsMySolder)
+                    {
+                        isMySolder = true;
+                        break;
+                    }
+                }
+
+                if (isMySolder)
+                {
+                    noWayUnits.Add(myUnit);
+                }
+                else
+                {
+                    paths.Add(new Tuple<Unit, IList<AStar.Point>>(myUnit, path));
+                }
             }
 
+           
             paths = paths.OrderBy(p => p.Item2.Count).ToList();
             foreach (var p in paths)
             {
                 var myUnit = p.Item1;
-                if (p.Item2.Count < 2) continue;
+                
                 var step = p.Item2[1] as AStarPoint;
                 if (CanMove(myUnit, map[step.Y][step.X], map))
                 {
@@ -546,10 +567,66 @@ class Player
                 }
             }
 
-            //var newLines = GetNewLines(lines, myUnits);
 
-            
-            
+            //если солдат не может дойти до чужой базы, он идет захватывать нейтральные точки
+            var neutralPoints = new List<Point>();
+            foreach (var line in map)
+            {
+                foreach (var point in line)
+                {
+                    if (point != null && point.Owner == -1)
+                        neutralPoints.Add(point);
+                }
+            }
+
+
+            while (noWayUnits.Any() && neutralPoints.Any())
+            {
+                var minDist = int.MaxValue;
+                Unit bestUnit = null;
+                Point bestNp = null;
+                IList<AStar.Point> bestPath = null;
+
+                foreach (var np in neutralPoints)
+                {
+                    foreach (var unit in noWayUnits)
+                    {
+                        var dist = GetManhDist(unit, np);
+                        if (dist < minDist)
+                        {
+                            var path = Calculator.GetPath(table[unit.Y, unit.X], table[np.Y, np.X], allPoints);
+                            if (path.Any(p => (p as AStarPoint).IsMySolder)) continue;
+
+                            minDist = dist;
+                            bestUnit = unit;
+                            bestNp = np;
+                            bestPath = path;
+
+                        }
+                    }
+                }
+
+                if (bestPath == null)
+                    break;
+
+                var step = bestPath[1] as AStarPoint;
+                if (CanMove(bestUnit, map[step.Y][step.X], map))
+                {
+                    command += $"MOVE {bestUnit.Id} {step.X} {step.Y};";
+                    map[bestUnit.Y][bestUnit.X] = new Point(bestUnit.X, bestUnit.Y, 0, true);
+                    map[step.Y][step.X] = new Unit(step.X, step.Y, bestUnit.Owner, bestUnit.Id, bestUnit.Level);
+
+                    table[step.Y, step.X].Owner = 0;
+                    table[bestUnit.Y, bestUnit.X].IsMySolder = false;
+                    table[step.Y, step.X].IsMySolder = true;
+
+                    neutralPoints.Remove(bestNp);
+                    noWayUnits.Remove(bestUnit);
+                }
+
+            }
+
+
 
             UpdateMap(map, myBuildings.Single(b => b.BuildingType == 0));
 
