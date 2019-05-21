@@ -683,7 +683,7 @@ class Player
                     }
                     else if (bestRecruitmentPoint is Building bestRecruitmentBuilding)
                     {
-                        command += $"BUILD TOWER {bestRecruitmentBuilding.X} {bestRecruitmentBuilding.Y}";
+                        command += $"BUILD TOWER {bestRecruitmentBuilding.X} {bestRecruitmentBuilding.Y};";
                         map[bestRecruitmentBuilding.Y][bestRecruitmentBuilding.X] = bestRecruitmentBuilding;
                         gold -= TowerCost;
                     }
