@@ -607,6 +607,9 @@ class Player
                         if (dist < minDist)
                         {
                             var path = Calculator.GetPath(table[unit.Y, unit.X], table[np.Y, np.X], allPoints);
+                            var step = path[1] as AStarPoint;
+                            if (!CanMove(unit, map[step.Y][step.X],map)) continue;
+
 
                             var isMySolder = false;
                             for (var i = 1; i < path.Count; ++i)
@@ -631,20 +634,17 @@ class Player
                 if (bestPath == null)
                     break;
 
-                var step = bestPath[1] as AStarPoint;
-                if (CanMove(bestUnit, map[step.Y][step.X], map))
-                {
-                    command += $"MOVE {bestUnit.Id} {step.X} {step.Y};";
-                    map[bestUnit.Y][bestUnit.X] = new Point(bestUnit.X, bestUnit.Y, 0, true);
-                    map[step.Y][step.X] = new Unit(step.X, step.Y, bestUnit.Owner, bestUnit.Id, bestUnit.Level);
+                var bestStep = bestPath[1] as AStarPoint;
+                command += $"MOVE {bestUnit.Id} {bestStep.X} {bestStep.Y};";
+                map[bestUnit.Y][bestUnit.X] = new Point(bestUnit.X, bestUnit.Y, 0, true);
+                map[bestStep.Y][bestStep.X] = new Unit(bestStep.X, bestStep.Y, bestUnit.Owner, bestUnit.Id, bestUnit.Level);
 
-                    table[step.Y, step.X].Owner = 0;
-                    table[bestUnit.Y, bestUnit.X].IsMySolder = false;
-                    table[step.Y, step.X].IsMySolder = true;
+                table[bestStep.Y, bestStep.X].Owner = 0;
+                table[bestUnit.Y, bestUnit.X].IsMySolder = false;
+                table[bestStep.Y, bestStep.X].IsMySolder = true;
 
-                    neutralPoints.Remove(bestNp);
-                    noWayUnits.Remove(bestUnit);
-                }
+                neutralPoints.Remove(bestNp);
+                noWayUnits.Remove(bestUnit);
 
             }
 
