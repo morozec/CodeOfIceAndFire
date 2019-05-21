@@ -5,6 +5,7 @@ using System.Text;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net;
+using System.Runtime.Remoting.Channels;
 using AStar;
 
 /**
@@ -515,6 +516,7 @@ class Player
 
 
             var map = GetMap(lines, myBuildings, myUnits, oppBuilding, oppUnits);
+            var myBase = myBuildings.Single(b => b.BuildingType == 0);
             var oppBase = oppBuilding.Single(b => b.BuildingType == 0);
             var command = "";
 
@@ -653,27 +655,38 @@ class Player
             while (gold >= RecruitmentCost1)
             {
                 var recruitmentPoints = GetRecruitmentPoints(map);
-                var bestRecruitmentUnit =
-                    GetBestRecruitmentUnit(recruitmentPoints, oppBase, table, allPoints, map, gold);
-                if (bestRecruitmentUnit != null)
+                var bestRecruitmentPoint =
+                    GetBestRecruitmentPoint(recruitmentPoints, myBase, oppBase, table, allPoints, map, mineSpots,gold);
+                if (bestRecruitmentPoint != null)
                 {
-                    command += $"TRAIN {bestRecruitmentUnit.Level} {bestRecruitmentUnit.X} {bestRecruitmentUnit.Y};";
-                    map[bestRecruitmentUnit.Y][bestRecruitmentUnit.X] = bestRecruitmentUnit;
-                    int cost;
-                    switch (bestRecruitmentUnit.Level)
+                    if (bestRecruitmentPoint is Unit bestRecruitmentUnit)
                     {
-                        case 3:
-                            cost = RecruitmentCost3;
-                            break;
-                        case 2:
-                            cost = RecruitmentCost2;
-                            break;
-                        default:
-                            cost = RecruitmentCost1;
-                            break;
-                    }
 
-                    gold -= cost;
+                        command +=
+                            $"TRAIN {bestRecruitmentUnit.Level} {bestRecruitmentUnit.X} {bestRecruitmentUnit.Y};";
+                        map[bestRecruitmentUnit.Y][bestRecruitmentUnit.X] = bestRecruitmentUnit;
+                        int cost;
+                        switch (bestRecruitmentUnit.Level)
+                        {
+                            case 3:
+                                cost = RecruitmentCost3;
+                                break;
+                            case 2:
+                                cost = RecruitmentCost2;
+                                break;
+                            default:
+                                cost = RecruitmentCost1;
+                                break;
+                        }
+
+                        gold -= cost;
+                    }
+                    else if (bestRecruitmentPoint is Building bestRecruitmentBuilding)
+                    {
+                        command += $"BUILD TOWER {bestRecruitmentBuilding.X} {bestRecruitmentBuilding.Y}";
+                        map[bestRecruitmentBuilding.Y][bestRecruitmentBuilding.X] = bestRecruitmentBuilding;
+                        gold -= TowerCost;
+                    }
                 }
                 else 
                     break;//иначе падаем в бесконечный цикл
@@ -775,15 +788,16 @@ class Player
         return recruitmentPoints;
     }
 
-    static Unit GetBestRecruitmentUnit(IList<Point> recruitmentPoints, Building oppBase, AStarPoint[,] table, IList<AStarPoint> allPoints,
-        IList<IList<Point>> map,
+    static Point GetBestRecruitmentPoint(IList<Point> recruitmentPoints, Building myBase, Building oppBase,
+        AStarPoint[,] table, IList<AStarPoint> allPoints,
+        IList<IList<Point>> map, IList<Point> mines,
         int gold)
     {
         Unit bestUnit = null;
         int maxKillCount = 0;
         int minOppBaseDist = int.MaxValue;
-        
-       
+
+
 
         var end = table[oppBase.Y, oppBase.X];
 
@@ -829,9 +843,22 @@ class Player
 
             var killCount = GetKillCount(p, map, oppBase);
             if (killCount < maxKillCount) continue;
-            
 
-          
+
+
+
+            var minMyUnitsDist = int.MaxValue;
+            for (var i = 0; i < map.Count; ++i)
+            {
+                for (var j = 0; j < map.Count; ++j)
+                {
+                    if (map[i][j] == null || map[i][j].Owner != 0 || !(map[i][j] is Unit)) continue;
+                    var dist = GetManhDist(map[i][j], p);
+                    if (dist < minMyUnitsDist)
+                        minMyUnitsDist = dist;
+                }
+            }
+
             var start = table[p.Y, p.X];
             var path = Calculator.GetPath(start, end, allPoints);
 
@@ -844,6 +871,75 @@ class Player
             }
         }
 
+        if (maxKillCount > 0 || gold < TowerCost)
+            return bestUnit;
+
+        Unit mostDangerousOppUnit = null;
+        int minMyBaseDist = int.MaxValue;
+        for (var i = 0; i < map.Count; ++i)
+        {
+            for (var j = 0; j < map[i].Count; ++j)
+            {
+                var p = map[i][j];
+                if (p == null || p.Owner != 1 || !(p is Unit)) continue;
+                var dist = GetManhDist(p, myBase);
+                if (dist < minMyBaseDist)
+                {
+                    minMyBaseDist = dist;
+                    mostDangerousOppUnit = p as Unit;
+                }
+            }
+        }
+
+        if (mostDangerousOppUnit == null)
+            return bestUnit;
+
+
+        int maxMyPointsCover = 0;
+        int maxMyUnitsCover = 0;
+        int minMyBaseDistCover = int.MaxValue;
+        Building tower = null;
+
+
+        var neighbours = GetMapNeighbours(map, mostDangerousOppUnit, true);
+        foreach (var n in neighbours)
+        {
+            if (n == null || n.Owner != 0 || !n.IsActive ||
+                (n is Unit || n is Building))
+                continue;
+            if (mines.Any(m => m.X == n.X && m.Y == n.Y)) continue;
+            //no my towers near
+            var nNeighbours = GetMapNeighbours(map, n, false);
+            if (nNeighbours.Any(nn => nn is Building building && building.BuildingType == 2))
+                continue;
+
+            var myPointsCover = 0;
+            var myUnitsCover = 0;
+            
+            foreach (var nn in nNeighbours)
+            {
+                if (nn == null) continue;
+                if (nn.Owner == 0)
+                {
+                    myPointsCover++;
+                    if (nn is Unit)
+                        myUnitsCover++;
+                }
+            }
+
+            if (myPointsCover > maxMyPointsCover || myPointsCover == maxMyPointsCover && myUnitsCover > maxMyUnitsCover ||
+                myPointsCover == maxMyPointsCover && myUnitsCover == maxMyUnitsCover && GetManhDist(n, myBase) < minMyBaseDistCover)
+            {
+                maxMyPointsCover = myPointsCover;
+                maxMyUnitsCover = myUnitsCover;
+                minMyBaseDistCover = GetManhDist(n, myBase);
+                tower = new Building(n.X, n.Y, 1, 2);
+            }
+
+        }
+
+        if (tower != null)
+            return tower;
         return bestUnit;
 
     }
@@ -1185,6 +1281,42 @@ class Player
     static int GetMineCost(int mines)
     {
         return 20 + 4 * mines;
+    }
+
+    static IList<Point> GetMapNeighbours(IList<IList<Point>> map, Point point, bool includeDiagonal)
+    {
+        var neighbours = new List<Point>();
+        if (point.Y > 0)
+            neighbours.Add(map[point.Y - 1][point.X]);
+        if (point.Y < map.Count - 1)
+            neighbours.Add(map[point.Y + 1][point.X]);
+        if (point.X > 0)
+            neighbours.Add(map[point.Y][point.X - 1]);
+        if (point.X < map[point.Y].Count - 1)
+            neighbours.Add(map[point.Y][point.X + 1]);
+
+        if (includeDiagonal)
+        {
+            if (point.Y > 0 && point.X > 0)
+            {
+                neighbours.Add(map[point.Y - 1][point.X - 1]);
+            }
+            if (point.Y < map.Count - 1 && point.X > 0)
+            {
+                neighbours.Add(map[point.Y + 1][point.X - 1]);
+            }
+
+            if (point.Y > 0 && point.X < map[point.Y].Count - 1)
+            {
+                neighbours.Add(map[point.Y - 1][point.X + 1]);
+            }
+            if (point.Y < map.Count - 1 && point.X < map[point.Y].Count - 1)
+            {
+                neighbours.Add(map[point.Y + 1][point.X + 1]);
+            }
+        }
+
+        return neighbours;
     }
    
 }
