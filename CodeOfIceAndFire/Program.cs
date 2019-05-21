@@ -1075,7 +1075,7 @@ class Player
         if (point.Y > 0)
         {
             var np = map[point.Y - 1][point.X];
-            if (np != null && np.IsActive && (np is Building pBuilding0) &&
+            if (np != null && np.IsActive && np.Owner == 1 && (np is Building pBuilding0) &&
                 pBuilding0.BuildingType == 2)
             {
                 hasNearOppTower = true;
@@ -1085,7 +1085,7 @@ class Player
         if (point.Y < map.Count - 1)
         {
             var np = map[point.Y + 1][point.X];
-            if (np != null && np.IsActive && (np is Building pBuilding0) &&
+            if (np != null && np.IsActive && np.Owner == 1 && (np is Building pBuilding0) &&
                 pBuilding0.BuildingType == 2)
             {
                 hasNearOppTower = true;
@@ -1095,7 +1095,7 @@ class Player
         if (point.X > 0)
         {
             var np = map[point.Y][point.X - 1];
-            if (np != null && np.IsActive && (np is Building pBuilding0) &&
+            if (np != null && np.IsActive && np.Owner == 1 && (np is Building pBuilding0) &&
                 pBuilding0.BuildingType == 2)
             {
                 hasNearOppTower = true;
@@ -1105,7 +1105,7 @@ class Player
         if (point.X < map[point.Y].Count - 1)
         {
             var np = map[point.Y][point.X + 1];
-            if (np != null && np.IsActive && (np is Building pBuilding0) &&
+            if (np != null && np.IsActive && np.Owner == 1 && (np is Building pBuilding0) &&
                 pBuilding0.BuildingType == 2)
             {
                 hasNearOppTower = true;
