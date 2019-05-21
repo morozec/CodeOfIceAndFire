@@ -798,31 +798,33 @@ class Player
                 if (gold < RecruitmentCost3) continue;
                 level = 3;
             }
-
-            if (p is Building pBuilding && pBuilding.BuildingType == 2)
+            else
             {
-                if (gold < RecruitmentCost3) continue;
-                level = 3;
-            }
-            else if (p is Unit pUnit)
-            {
-                switch (pUnit.Level)
+                if (p is Building pBuilding && pBuilding.BuildingType == 2)
                 {
-                    case 3:
-                        if (gold < RecruitmentCost3)
-                            continue;
-                        level = 3;
-                        break;
-                    case 2:
-                        if (gold < RecruitmentCost3)
-                            continue;
-                        level = 3;
-                        break;
-                    case 1:
-                        if (gold < RecruitmentCost2)
-                            continue;
-                        level = 2;
-                        break;
+                    if (gold < RecruitmentCost3) continue;
+                    level = 3;
+                }
+                else if (p is Unit pUnit)
+                {
+                    switch (pUnit.Level)
+                    {
+                        case 3:
+                            if (gold < RecruitmentCost3)
+                                continue;
+                            level = 3;
+                            break;
+                        case 2:
+                            if (gold < RecruitmentCost3)
+                                continue;
+                            level = 3;
+                            break;
+                        case 1:
+                            if (gold < RecruitmentCost2)
+                                continue;
+                            level = 2;
+                            break;
+                    }
                 }
             }
 
