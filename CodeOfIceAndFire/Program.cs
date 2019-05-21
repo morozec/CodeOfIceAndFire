@@ -780,8 +780,11 @@ class Player
         int gold)
     {
         Unit bestUnit = null;
-        int maxMyUnitsDist = -int.MaxValue;
         int maxKillCount = 0;
+        int maxMyUnitsDist = -int.MaxValue;
+        int minOppBaseDist = int.MaxValue;
+        
+       
 
         var end = table[oppBase.Y, oppBase.X];
 
@@ -827,26 +830,29 @@ class Player
             if (killCount < maxKillCount) continue;
             
 
-            //var start = table[p.Y, p.X];
+            
 
-            var minDist = int.MaxValue;
+            var minMyUnitsDist = int.MaxValue;
             for (var i = 0; i < map.Count; ++i)
             {
                 for (var j = 0; j < map.Count; ++j)
                 {
                     if (map[i][j] == null || map[i][j].Owner != 0 || !(map[i][j] is Unit)) continue;
                     var dist = GetManhDist(map[i][j], p);
-                    if (dist < minDist)
-                        minDist = dist;
+                    if (dist < minMyUnitsDist)
+                        minMyUnitsDist = dist;
                 }
             }
 
-            //var path = Calculator.GetPath(start, end, allPoints);
+            var start = table[p.Y, p.X];
+            var path = Calculator.GetPath(start, end, allPoints);
 
-            if (killCount > maxKillCount || minDist > maxMyUnitsDist)
+            if (killCount > maxKillCount || killCount == maxKillCount && minMyUnitsDist > maxMyUnitsDist ||
+                killCount == maxKillCount && minMyUnitsDist == maxMyUnitsDist && path.Count < minOppBaseDist)
             {
                 maxKillCount = killCount;
-                maxMyUnitsDist = minDist;
+                maxMyUnitsDist = minMyUnitsDist;
+                minOppBaseDist = path.Count;
                 bestUnit = new Unit(p.X, p.Y, 0, -1, level);
             }
         }
