@@ -580,70 +580,57 @@ class Player
             //}
 
 
-            //если солдат не может дойти до чужой базы, он идет захватывать нейтральные точки
-            var neutralPoints = new List<Point>();
+            //если солдат не может дойти до чужой базы, он идет захватывать свободные точки
+            var canCapturePoints = new List<Point>();
             foreach (var line in map)
             {
                 foreach (var point in line)
                 {
-                    if (point != null && point.Owner == -1)
-                        neutralPoints.Add(point);
+                    if (point != null && point.Owner != 0)
+                        canCapturePoints.Add(point);
                 }
             }
 
 
-            while (noWayUnits.Any() && neutralPoints.Any())
+            while (noWayUnits.Any() && canCapturePoints.Any())
             {
                 var minDist = int.MaxValue;
                 Unit bestUnit = null;
-                Point bestNp = null;
-                IList<AStar.Point> bestPath = null;
+                Point bestCcp = null;
 
-                foreach (var np in neutralPoints)
+                foreach (var ccp in canCapturePoints)
                 {
                     foreach (var unit in noWayUnits)
                     {
-                        var dist = GetManhDist(unit, np);
+                        var dist = GetManhDist(unit, ccp);
                         if (dist < minDist)
                         {
-                            var path = Calculator.GetPath(table[unit.Y, unit.X], table[np.Y, np.X], allPoints);
-                            var step = path[1] as AStarPoint;
-                            if (!CanMove(unit, map[step.Y][step.X],map)) continue;
-
-
-                            var isMySolder = false;
-                            for (var i = 1; i < path.Count; ++i)
-                            {
-                                if ((path[i] as AStarPoint).IsMySolder)
-                                {
-                                    isMySolder = true;
-                                    break;
-                                }
-                            }
-                            if (isMySolder) continue;
-
                             minDist = dist;
                             bestUnit = unit;
-                            bestNp = np;
-                            bestPath = path;
-
+                            bestCcp = ccp;
                         }
                     }
                 }
 
-                if (bestPath == null)
+                if (bestUnit == null || bestCcp == null)
                     break;
 
+                var bestPath = Calculator.GetPath(table[bestUnit.Y, bestUnit.X], table[bestCcp.Y, bestCcp.X], allPoints);
+                
                 var bestStep = bestPath[1] as AStarPoint;
-                command += $"MOVE {bestUnit.Id} {bestStep.X} {bestStep.Y};";
-                map[bestUnit.Y][bestUnit.X] = new Point(bestUnit.X, bestUnit.Y, 0, true);
-                map[bestStep.Y][bestStep.X] = new Unit(bestStep.X, bestStep.Y, bestUnit.Owner, bestUnit.Id, bestUnit.Level);
+                if (CanMove(bestUnit, map[bestStep.Y][bestStep.X], map))
+                {
+                    command += $"MOVE {bestUnit.Id} {bestStep.X} {bestStep.Y};";
+                    map[bestUnit.Y][bestUnit.X] = new Point(bestUnit.X, bestUnit.Y, 0, true);
+                    map[bestStep.Y][bestStep.X] =
+                        new Unit(bestStep.X, bestStep.Y, bestUnit.Owner, bestUnit.Id, bestUnit.Level);
 
-                table[bestStep.Y, bestStep.X].Owner = 0;
-                table[bestUnit.Y, bestUnit.X].IsMySolder = false;
-                table[bestStep.Y, bestStep.X].IsMySolder = true;
+                    table[bestStep.Y, bestStep.X].Owner = 0;
+                    table[bestUnit.Y, bestUnit.X].IsMySolder = false;
+                    table[bestStep.Y, bestStep.X].IsMySolder = true;
+                }
 
-                neutralPoints.Remove(bestNp);
+                canCapturePoints.Remove(bestCcp);
                 noWayUnits.Remove(bestUnit);
 
             }
