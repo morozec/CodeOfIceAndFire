@@ -67,10 +67,10 @@ namespace AStar
         {
             var aStarGoal = goal as AStarPoint;
             double cost = Weight + Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y) * aStarGoal.Weight;
-            //if (aStarGoal.Owner == 1)
-            //    cost -= 2;
-            if (aStarGoal.Owner == -1)
+            if (aStarGoal.Owner == 1)
                 cost -= 0.1;
+            if (aStarGoal.Owner == -1)
+                cost -= 0.2;
             if (aStarGoal.IsMySolder)
                 cost += 10;
 
