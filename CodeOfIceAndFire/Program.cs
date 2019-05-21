@@ -605,7 +605,17 @@ class Player
                         if (dist < minDist)
                         {
                             var path = Calculator.GetPath(table[unit.Y, unit.X], table[np.Y, np.X], allPoints);
-                            if (path.Any(p => (p as AStarPoint).IsMySolder)) continue;
+
+                            var isMySolder = false;
+                            for (var i = 1; i < path.Count; ++i)
+                            {
+                                if ((path[i] as AStarPoint).IsMySolder)
+                                {
+                                    isMySolder = true;
+                                    break;
+                                }
+                            }
+                            if (isMySolder) continue;
 
                             minDist = dist;
                             bestUnit = unit;
