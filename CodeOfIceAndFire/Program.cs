@@ -339,6 +339,12 @@ namespace AStar
 
 namespace MapPoints
 {
+    public class Command
+    {
+        public IList<Unit> RecruitmentUnits { get; set; }
+        public IList<Tuple<Unit, Point>> Moves { get; set; }
+    }
+
     public class Point
     {
         public int X { get; set; }
@@ -516,166 +522,19 @@ class Player
             var map = GetMap(lines, myBuildings, myUnits, oppBuilding, oppUnits);
             var myBase = myBuildings.Single(b => b.BuildingType == 0);
             var oppBase = oppBuilding.Single(b => b.BuildingType == 0);
-            var command = "";
+            var command = GetCommand(myUnits, map, myBase, oppBase, gold, table, allPoints);
+            var textCommand = "";
 
-            var endPoint = table[oppBase.Y, oppBase.X];
-
-            myUnits = myUnits.OrderBy(u => GetManhDist(u, oppBase)).ToList();
-            var noWayUnits = new List<Unit>();
-            foreach (var myUnit in myUnits)
+            foreach (var move in command.Moves)
             {
-                var startPoint = table[myUnit.Y, myUnit.X];
-                var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map);
-                if (path.Count < 2) continue;
- 
-                var isMySolder = false;
-                for (var i = 1; i < path.Count; ++i)
-                {
-                    if ((path[i] as AStarPoint).IsMySolder)
-                    {
-                        isMySolder = true;
-                        break;
-                    }
-                }
-
-                if (isMySolder)
-                {
-                    noWayUnits.Add(myUnit);
-                    continue;
-                }
-
-                var step =path[1] as AStarPoint;
-                if (CanMove(myUnit, map[step.Y][step.X], map))
-                {
-                    command += $"MOVE {myUnit.Id} {step.X} {step.Y};";
-                    map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
-                    map[step.Y][step.X] = new Unit(step.X, step.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
-
-                    table[step.Y, step.X].Owner = 0;
-                    table[myUnit.Y, myUnit.X].IsMySolder = false;
-                    table[step.Y, step.X].IsMySolder = true;
-                }
-
+                textCommand += $"MOVE {move.Item1.Id} {move.Item2.X} {move.Item2.Y};";
             }
 
-           
-            //paths = paths.OrderBy(p => p.Item2.Count).ToList();
-            //foreach (var p in paths)
-            //{
-            //    var myUnit = p.Item1;
-                
-            //    var step = p.Item2[1] as AStarPoint;
-            //    if (CanMove(myUnit, map[step.Y][step.X], map))
-            //    {
-            //        command += $"MOVE {myUnit.Id} {step.X} {step.Y};";
-            //        map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
-            //        map[step.Y][step.X] = new Unit(step.X, step.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
-
-            //        table[step.Y, step.X].Owner = 0;
-            //        table[myUnit.Y, myUnit.X].IsMySolder = false;
-            //        table[step.Y, step.X].IsMySolder = true;
-            //    }
-            //}
-
-
-            //если солдат не может дойти до чужой базы, он идет захватывать свободные точки
-            var canCapturePoints = new List<Point>();
-            foreach (var line in map)
+            foreach (var recUnit in command.RecruitmentUnits)
             {
-                foreach (var point in line)
-                {
-                    if (point != null && point.Owner != 0)
-                        canCapturePoints.Add(point);
-                }
+                textCommand += $"TRAIN {recUnit.Level} {recUnit.X} {recUnit.Y};";
+                gold -= GetUnitCost(recUnit.Level);
             }
-
-
-            while (noWayUnits.Any() && canCapturePoints.Any())
-            {
-                var minDist = int.MaxValue;
-                Unit bestUnit = null;
-                Point bestCcp = null;
-
-                foreach (var ccp in canCapturePoints)
-                {
-                    foreach (var unit in noWayUnits)
-                    {
-                        var dist = GetManhDist(unit, ccp);
-                        if (dist < minDist)
-                        {
-                            minDist = dist;
-                            bestUnit = unit;
-                            bestCcp = ccp;
-                        }
-                    }
-                }
-
-                if (bestUnit == null || bestCcp == null)
-                    break;
-
-                var bestPath = Calculator.GetPath(table[bestUnit.Y, bestUnit.X],
-                    table[bestCcp.Y, bestCcp.X],
-                    allPoints,
-                    bestUnit,
-                    map);
-                
-                var bestStep = bestPath[1] as AStarPoint;
-                if (CanMove(bestUnit, map[bestStep.Y][bestStep.X], map))
-                {
-                    command += $"MOVE {bestUnit.Id} {bestStep.X} {bestStep.Y};";
-                    map[bestUnit.Y][bestUnit.X] = new Point(bestUnit.X, bestUnit.Y, 0, true);
-                    map[bestStep.Y][bestStep.X] =
-                        new Unit(bestStep.X, bestStep.Y, bestUnit.Owner, bestUnit.Id, bestUnit.Level);
-
-                    table[bestStep.Y, bestStep.X].Owner = 0;
-                    table[bestUnit.Y, bestUnit.X].IsMySolder = false;
-                    table[bestStep.Y, bestStep.X].IsMySolder = true;
-                }
-
-                canCapturePoints.Remove(bestCcp);
-                noWayUnits.Remove(bestUnit);
-
-            }
-
-
-
-            UpdateMap(map, myBuildings.Single(b => b.BuildingType == 0));
-
-            GetBestRecruitmentUnits(map, oppBase, gold, null, out var bestRecUnits);
-            foreach (var unit in bestRecUnits)
-            {
-                command += $"TRAIN {unit.Level} {unit.X} {unit.Y};";
-                map[unit.Y][unit.X] = unit;
-                int cost = GetUnitCost(unit.Level);
-                gold -= cost;
-            }
-
-            //while (gold >= RecruitmentCost1)
-            //{
-            //    var recruitmentPoints = GetRecruitmentPoints(map);
-            //    var bestRecruitmentPoint =
-            //        GetBestRecruitmentPoint(recruitmentPoints, myBase, oppBase, table, allPoints, map, mineSpots,gold, income);
-            //    if (bestRecruitmentPoint != null)
-            //    {
-            //        if (bestRecruitmentPoint is Unit bestRecruitmentUnit)
-            //        {
-
-            //            command +=
-            //                $"TRAIN {bestRecruitmentUnit.Level} {bestRecruitmentUnit.X} {bestRecruitmentUnit.Y};";
-            //            map[bestRecruitmentUnit.Y][bestRecruitmentUnit.X] = bestRecruitmentUnit;
-            //            int cost = GetUnitCost(bestRecruitmentUnit.Level);
-            //            gold -= cost;
-            //        }
-            //        else if (bestRecruitmentPoint is Building bestRecruitmentBuilding)
-            //        {
-            //            command += $"BUILD TOWER {bestRecruitmentBuilding.X} {bestRecruitmentBuilding.Y};";
-            //            map[bestRecruitmentBuilding.Y][bestRecruitmentBuilding.X] = bestRecruitmentBuilding;
-            //            gold -= TowerCost;
-            //        }
-            //    }
-            //    else 
-            //        break;//иначе падаем в бесконечный цикл
-            //}
 
 
             var mines = myBuildings.Where(b => b.BuildingType == 1).ToList();
@@ -684,7 +543,7 @@ class Player
                 var bmp = GetBestMinePosition(map, mineSpots, myBuildings.Single(b => b.BuildingType == 0));
                 if (bmp != null)
                 {
-                    command += $"BUILD MINE {bmp.X} {bmp.Y};";
+                    textCommand += $"BUILD MINE {bmp.X} {bmp.Y};";
                     mines.Add(new Building(bmp.X, bmp.Y, 0, 1));
                     map[bmp.Y][bmp.X] = new Building(bmp.X, bmp.Y, 0, 1);
                     gold -= GetMineCost(mines.Count);
@@ -694,7 +553,7 @@ class Player
             }
         
 
-            Console.WriteLine(command != "" ? command : "WAIT");
+            Console.WriteLine(textCommand != "" ? textCommand : "WAIT");
         }
     }
 
@@ -770,196 +629,196 @@ class Player
         return level == 3 ? 20 : level == 2 ? 4 : 1;
     }
 
-    static Point GetBestRecruitmentPoint(IList<Point> recruitmentPoints, Building myBase, Building oppBase,
-        AStarPoint[,] table, IList<AStarPoint> allPoints,
-        IList<IList<Point>> map, IList<Point> mines,
-        int gold, int income)
+    static Command GetCommand(
+        IList<Unit> myUnits, IList<IList<Point>> map, Building myBase, Building oppBase, int gold, AStarPoint[,] table, IList<AStarPoint> allPoints)
     {
-        Unit bestUnit = null;
-        int maxKillCount = 0;
-        int minOppBaseDist = int.MaxValue;
+        var moves = new List<Tuple<Unit, Point>>();
+        var noMoveKillCount = GetBestRecruitmentUnits(map, oppBase, gold, null, out var bestRecUnits);
 
+        int maxKillCount = noMoveKillCount;
+        Tuple<Unit, Point> bestMove = null;
 
-
-        var end = table[oppBase.Y, oppBase.X];
-
-        foreach (var p in recruitmentPoints)
+        foreach (var unit in myUnits)
         {
-            int level = 1;
+            var neighbours = GetMapNeighbours(map, unit, false);
+            foreach (var n in neighbours)
+            {
+                if (n == null) continue;
+                if (n.Owner == 0) continue;
+                if (!CanMove(unit, n, map)) continue;
 
-            if (IsTowerInfluenceCell(p.X, p.Y, map, 1))
-            {
-                if (gold < RecruitmentCost3) continue;
-                level = 3;
-            }
-            else
-            {
-                if (IsTowerCell(p.X, p.Y, map, 1))
+                var savedUnit = unit;
+                var savedPoint = n;
+
+                map[unit.Y][unit.X] = new Point(unit.X, unit.Y, 0, true);
+                map[n.Y][n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
+                var activatedPoints = UpdateAfterMoveMap(map, myBase);
+
+                var killCount = GetBestRecruitmentUnits(map, oppBase, gold, n, out _);
+
+                map[unit.Y][unit.X] = savedUnit;
+                map[n.Y][n.X] = savedPoint;
+                foreach (var p in activatedPoints)
+                    p.IsActive = false;
+
+                if (killCount > maxKillCount)
                 {
-                    if (gold < RecruitmentCost3) continue;
-                    level = 3;
+                    maxKillCount = killCount;
+                    bestMove = new Tuple<Unit, Point>(unit, n);
                 }
-                else if (p is Unit pUnit)
+            }
+        }
+
+        Unit recMoveUnit = null;
+        if (bestMove != null)
+        {
+            moves.Add(bestMove);
+            recMoveUnit = bestMove.Item1;
+
+            map[recMoveUnit.Y][recMoveUnit.X] = new Point(recMoveUnit.Y, recMoveUnit.X, -1, true);
+            map[bestMove.Item2.Y][bestMove.Item2.X] = new Unit(bestMove.Item2.X,
+                bestMove.Item2.Y,
+                recMoveUnit.Owner,
+                recMoveUnit.Id,
+                recMoveUnit.Level);
+
+            table[bestMove.Item2.Y, bestMove.Item2.X].Owner = 0;
+            table[recMoveUnit.Y, recMoveUnit.X].IsMySolder = false;
+            table[bestMove.Item2.Y, bestMove.Item2.X].IsMySolder = true;
+        }
+
+
+        var endPoint = table[oppBase.Y, oppBase.X];
+
+        myUnits = myUnits.OrderBy(u => GetManhDist(u, oppBase)).ToList();
+        var noWayUnits = new List<Unit>();
+        foreach (var myUnit in myUnits.Where(u => !Equals(u, recMoveUnit)))
+        {
+            var startPoint = table[myUnit.Y, myUnit.X];
+            var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map);
+            if (path.Count < 2) continue;
+
+            var isMySolder = false;
+            for (var i = 1; i < path.Count; ++i)
+            {
+                if ((path[i] as AStarPoint).IsMySolder)
                 {
-                    switch (pUnit.Level)
+                    isMySolder = true;
+                    break;
+                }
+            }
+
+            if (isMySolder)
+            {
+                noWayUnits.Add(myUnit);
+                continue;
+            }
+
+            var step = path[1] as AStarPoint;
+            if (CanMove(myUnit, map[step.Y][step.X], map))
+            {
+                moves.Add(new Tuple<Unit, Point>(myUnit, map[step.Y][step.X]));
+
+                map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
+                map[step.Y][step.X] = new Unit(step.X, step.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
+
+                table[step.Y, step.X].Owner = 0;
+                table[myUnit.Y, myUnit.X].IsMySolder = false;
+                table[step.Y, step.X].IsMySolder = true;
+            }
+
+        }
+
+        //если солдат не может дойти до чужой базы, он идет захватывать свободные точки
+        var canCapturePoints = new List<Point>();
+        foreach (var line in map)
+        {
+            foreach (var point in line)
+            {
+                if (point != null && point.Owner != 0)
+                    canCapturePoints.Add(point);
+            }
+        }
+
+
+        while (noWayUnits.Any() && canCapturePoints.Any())
+        {
+            var minDist = int.MaxValue;
+            Unit bestUnit = null;
+            Point bestCcp = null;
+
+            foreach (var ccp in canCapturePoints)
+            {
+                foreach (var unit in noWayUnits)
+                {
+                    var dist = GetManhDist(unit, ccp);
+                    if (dist < minDist)
                     {
-                        case 3:
-                            if (gold < RecruitmentCost3)
-                                continue;
-                            level = 3;
-                            break;
-                        case 2:
-                            if (gold < RecruitmentCost3)
-                                continue;
-                            level = 3;
-                            break;
-                        case 1:
-                            if (gold < RecruitmentCost2)
-                                continue;
-                            level = 2;
-                            break;
+                        minDist = dist;
+                        bestUnit = unit;
+                        bestCcp = ccp;
                     }
                 }
             }
 
-            var unitUpkeep = GetUnitUpkeep(level);
-            if (unitUpkeep > income)
-                continue;
+            if (bestUnit == null || bestCcp == null)
+                break;
 
-            var curPoint = p;
-            map[p.Y][p.X] = new Unit(p.X, p.Y, 0, -1, 1);
-            var killCount = GetKillCount(map, oppBase);
-            if (IsTowerCell(p.X, p.Y, map, 1))
-                killCount++; //kill opp tower
+            var bestPath = Calculator.GetPath(table[bestUnit.Y, bestUnit.X],
+                table[bestCcp.Y, bestCcp.X],
+                allPoints,
+                bestUnit,
+                map);
 
-            map[p.Y][p.X] = curPoint;
-            if (killCount < maxKillCount) continue;
-
-
-
-
-            var minMyUnitsDist = int.MaxValue;
-            for (var i = 0; i < map.Count; ++i)
+            var bestStep = bestPath[1] as AStarPoint;
+            if (CanMove(bestUnit, map[bestStep.Y][bestStep.X], map))
             {
-                for (var j = 0; j < map.Count; ++j)
-                {
-                    if (map[i][j] == null || map[i][j].Owner != 0 || !(map[i][j] is Unit)) continue;
-                    var dist = GetManhDist(map[i][j], p);
-                    if (dist < minMyUnitsDist)
-                        minMyUnitsDist = dist;
-                }
+                moves.Add(new Tuple<Unit, Point>(bestUnit, map[bestStep.Y][bestStep.X]));
+                map[bestUnit.Y][bestUnit.X] = new Point(bestUnit.X, bestUnit.Y, 0, true);
+                map[bestStep.Y][bestStep.X] =
+                    new Unit(bestStep.X, bestStep.Y, bestUnit.Owner, bestUnit.Id, bestUnit.Level);
+
+                table[bestStep.Y, bestStep.X].Owner = 0;
+                table[bestUnit.Y, bestUnit.X].IsMySolder = false;
+                table[bestStep.Y, bestStep.X].IsMySolder = true;
             }
 
-            var start = table[p.Y, p.X];
-            var path = Calculator.GetPath(start, end, allPoints, new Unit(p.X, p.Y, 1, -1, 3), map);
+            canCapturePoints.Remove(bestCcp);
+            noWayUnits.Remove(bestUnit);
 
-            if (killCount > maxKillCount ||
-                killCount == maxKillCount && path.Count < minOppBaseDist)
-            {
-                maxKillCount = killCount;
-                minOppBaseDist = path.Count;
-                bestUnit = new Unit(p.X, p.Y, 0, -1, level);
-            }
         }
-
-        if (maxKillCount > 1 || gold < TowerCost)
-            return bestUnit;
-
-        Unit mostDangerousOppUnit = null;
-        int minMyBaseDist = int.MaxValue;
-        for (var i = 0; i < map.Count; ++i)
+        
+        //запускаем найм еще раз на обновленной карте
+        GetBestRecruitmentUnits(map, oppBase, gold, null, out bestRecUnits);
+        foreach (var recUnit in bestRecUnits)
         {
-            for (var j = 0; j < map[i].Count; ++j)
-            {
-                var p = map[i][j];
-                if (p == null || p.Owner != 1 || !(p is Unit pUnit)) continue;
-                var path = Calculator.GetPath(table[p.Y, p.X], table[myBase.Y, myBase.X], allPoints, pUnit, map);
+            map[recUnit.Y][recUnit.X] = recUnit;
 
-                if (path.Count < minMyBaseDist)
-                {
-                    minMyBaseDist = path.Count;
-                    mostDangerousOppUnit = p as Unit;
-                }
-            }
+            table[recUnit.Y, recUnit.X].Owner = 0;
+            table[recUnit.Y, recUnit.X].IsMySolder = true;
         }
 
-        if (mostDangerousOppUnit == null)
-            return bestUnit;
-
-
-        int maxMyPointsCover = 0;
-        int maxMyUnitsCover = 0;
-        int minMyBaseDistCover = int.MaxValue;
-        Building tower = null;
-
-
-        var neighbours = GetMapNeighbours(map, mostDangerousOppUnit, true);
-        foreach (var n in neighbours)
-        {
-            if (n == null || n.Owner != 0 || !n.IsActive ||
-                (n is Unit || n is Building))
-                continue;
-            if (mines.Any(m => m.X == n.X && m.Y == n.Y)) continue;
-            if (GetManhDist(mostDangerousOppUnit, myBase) <= GetManhDist(n, myBase)) continue; //нет смысла строить башню сзади
-           
-            
-            var myPointsCover = 0;
-            var myUnitsCover = 0;
-
-            var hasMyTowersNear = false;
-
-            var nNeighbours = GetMapNeighbours(map, n, false);
-            foreach (var nn in nNeighbours)
-            {
-                if (nn == null) continue;
-
-                //no my towers near
-                if (IsTowerInfluenceCell(nn.X, nn.Y, map, 0))
-                {
-                    hasMyTowersNear = true;
-                    break;
-                }
-
-                if (nn.Owner == 0)
-                {
-                    myPointsCover++;
-                    if (nn is Unit)
-                        myUnitsCover++;
-                }
-            }
-
-            if (hasMyTowersNear) continue;
-
-            if (myPointsCover > maxMyPointsCover || myPointsCover == maxMyPointsCover && myUnitsCover > maxMyUnitsCover ||
-                myPointsCover == maxMyPointsCover && myUnitsCover == maxMyUnitsCover && GetManhDist(n, myBase) < minMyBaseDistCover)
-            {
-                maxMyPointsCover = myPointsCover;
-                maxMyUnitsCover = myUnitsCover;
-                minMyBaseDistCover = GetManhDist(n, myBase);
-                tower = new Building(n.X, n.Y, 0, 2);
-            }
-
-        }
-
-        if (tower != null)
-            return tower;
-        return bestUnit;
-
+        return new Command() {RecruitmentUnits = bestRecUnits, Moves = moves};
     }
 
     static int GetBestRecruitmentUnits(IList<IList<Point>> map, Building oppBase, int gold, Point pointFrom, out List<Unit> resUnits)
     {
+        var killCount = pointFrom != null && pointFrom.Owner == 1 &&
+                        (pointFrom is Unit || pointFrom is Building building && building.BuildingType == 2)
+            ? 1
+            : 0;
+
         if (gold < RecruitmentCost1)
         {
             resUnits = new List<Unit>();
-            return GetKillCount(map, oppBase);
+            return killCount + GetKillCount(map, oppBase);
         }
 
         var recruitmentPoints = pointFrom == null ? GetRecruitmentPoints(map) : GetRecruitmentPoints(map, pointFrom);
         if (!recruitmentPoints.Any())
         {
             resUnits = new List<Unit>();
-            return GetKillCount(map, oppBase);
+            return killCount + GetKillCount(map, oppBase);
         }
 
         int maxKillCount = 0;
@@ -978,16 +837,13 @@ class Player
             var unit = new Unit(rp.X, rp.Y, 0, -1, level);
             map[rp.Y][rp.X] = unit ;
 
-            var killCount = GetBestRecruitmentUnits(map, oppBase, gold - cost, rp, out var resUnitsCur);
-
-            if (rp is Building oppBuilding && oppBuilding.BuildingType == 2 || rp is Unit oppUnit)
-                killCount++;
+            var killCountCur = killCount + GetBestRecruitmentUnits(map, oppBase, gold - cost, rp, out var resUnitsCur);
 
             map[rp.Y][rp.X] = changePoint;
 
-            if (killCount > maxKillCount || killCount == maxKillCount && GetManhDist(rp, oppBase) < minOppBaseDist)
+            if (killCountCur > maxKillCount || killCountCur == maxKillCount && GetManhDist(rp, oppBase) < minOppBaseDist)
             {
-                maxKillCount = killCount;
+                maxKillCount = killCountCur;
                 minOppBaseDist = GetManhDist(rp, oppBase);
                 resUnitsCur.Insert(0, unit);
                 bestResUnits = resUnitsCur;
@@ -997,7 +853,7 @@ class Player
         if (!hasRecPoint)
         {
             resUnits = new List<Unit>();
-            return GetKillCount(map, oppBase);
+            return killCount + GetKillCount(map, oppBase);
         }
 
         resUnits = bestResUnits;
@@ -1118,32 +974,28 @@ class Player
 
     static bool CanMove(Unit unit, Point point, IList<IList<Point>> map)
     {
+        if (point == null)
+            return false;
         //opp tower
         if (IsTowerInfluenceCell(point.X, point.Y, map, 1) && unit.Level < 3)
             return false;
         
         if (point is Building pointBuilding)
         {
-            if (pointBuilding.BuildingType == 0 || pointBuilding.BuildingType == 1) //base or mine
-                return true;
-            //tower
-            if (pointBuilding.Owner == 0)//my tower
-                return true;
-            //opp tower
-            if (unit.Level == 3)
-                return true;
-        }
-        else if (point is Unit pointUnit)
-        {
-            if (pointUnit.Owner != 0 && (unit.Level == 3 || unit.Level > pointUnit.Level))
-                return true;
-        }
-        else //нейтральная точка
-        {
+            if (pointBuilding.Owner == 0)
+                return false;
+            
             return true;
         }
+        if (point is Unit pointUnit)
+        {
+            if (pointUnit.Owner == 0)
+                return false;
 
-        return false;
+            return unit.Level == 3 || unit.Level > pointUnit.Level;
+        }
+        //нейтральная точка
+        return true;
     }
     
     //static Point GetHorizontalMove(Unit unit, IList<IList<Point>> map, bool isFire)
@@ -1251,20 +1103,22 @@ class Player
         return map;
     }
 
-    static void UpdateMap(IList<IList<Point>> map, Building myBase)
+    static IList<Point> UpdateAfterMoveMap(IList<IList<Point>> map, Building myBase)
     {
         //BFS
         var queue = new Queue<Point>();
         queue.Enqueue(myBase);
         var discoveredPoints = new HashSet<Point>(){myBase};
 
+        var activatedPoints = new List<Point>();
         while (queue.Count > 0)
         {
             var p = queue.Dequeue();
             if (p.Owner == 0 && !p.IsActive)
             {
                 p.IsActive = true;
-                Console.Error.WriteLine($"POINT {p.X} {p.Y} IS ACTIVATED");
+                activatedPoints.Add(p);
+                //Console.Error.WriteLine($"POINT {p.X} {p.Y} IS ACTIVATED");
             }
 
             if (p.Y > 0)
@@ -1306,6 +1160,8 @@ class Player
                 }
             }
         }
+
+        return activatedPoints;
     }
     
 
