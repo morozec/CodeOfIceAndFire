@@ -370,7 +370,7 @@ namespace MapPoints
     {
         public int BuildingType { get; set; }
 
-        public Building(int x, int y, int owner, int buildingType) : base(x, y, owner, true)
+        public Building(int x, int y, int owner, int buildingType, bool isActive) : base(x, y, owner, isActive)
         {
             BuildingType = buildingType;
         }
@@ -487,7 +487,7 @@ class Player
                 int y = int.Parse(inputs[3]);
                 
                 
-                var someBuilding = new Building(x, y, owner, buildingType);
+                var someBuilding = new Building(x, y, owner, buildingType, lines[y][x] == 'O' || lines[y][x] == 'X');
                 if (owner == 0)
                 {
                     myBuildings.Add(someBuilding);
@@ -548,8 +548,8 @@ class Player
                 if (bmp != null)
                 {
                     textCommand += $"BUILD MINE {bmp.X} {bmp.Y};";
-                    mines.Add(new Building(bmp.X, bmp.Y, 0, 1));
-                    map[bmp.Y][bmp.X] = new Building(bmp.X, bmp.Y, 0, 1);
+                    mines.Add(new Building(bmp.X, bmp.Y, 0, 1, true));
+                    map[bmp.Y][bmp.X] = new Building(bmp.X, bmp.Y, 0, 1, true);
                     gold -= GetMineCost(mines.Count);
                 }
                 else
