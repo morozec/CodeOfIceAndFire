@@ -641,34 +641,43 @@ class Player
 
             UpdateMap(map, myBuildings.Single(b => b.BuildingType == 0));
 
-            while (gold >= RecruitmentCost1)
+            GetBestRecruitmentUnits(map, oppBase, gold, null, out var bestRecUnits);
+            foreach (var unit in bestRecUnits)
             {
-                var recruitmentPoints = GetRecruitmentPoints(map);
-                var bestRecruitmentPoint =
-                    GetBestRecruitmentPoint(recruitmentPoints, myBase, oppBase, table, allPoints, map, mineSpots,gold, income);
-                if (bestRecruitmentPoint != null)
-                {
-                    if (bestRecruitmentPoint is Unit bestRecruitmentUnit)
-                    {
-
-                        command +=
-                            $"TRAIN {bestRecruitmentUnit.Level} {bestRecruitmentUnit.X} {bestRecruitmentUnit.Y};";
-                        map[bestRecruitmentUnit.Y][bestRecruitmentUnit.X] = bestRecruitmentUnit;
-                        int cost = GetUnitCost(bestRecruitmentUnit.Level);
-                        gold -= cost;
-                    }
-                    else if (bestRecruitmentPoint is Building bestRecruitmentBuilding)
-                    {
-                        command += $"BUILD TOWER {bestRecruitmentBuilding.X} {bestRecruitmentBuilding.Y};";
-                        map[bestRecruitmentBuilding.Y][bestRecruitmentBuilding.X] = bestRecruitmentBuilding;
-                        gold -= TowerCost;
-                    }
-                }
-                else 
-                    break;//иначе падаем в бесконечный цикл
+                command += $"TRAIN {unit.Level} {unit.X} {unit.Y};";
+                map[unit.Y][unit.X] = unit;
+                int cost = GetUnitCost(unit.Level);
+                gold -= cost;
             }
 
-           
+            //while (gold >= RecruitmentCost1)
+            //{
+            //    var recruitmentPoints = GetRecruitmentPoints(map);
+            //    var bestRecruitmentPoint =
+            //        GetBestRecruitmentPoint(recruitmentPoints, myBase, oppBase, table, allPoints, map, mineSpots,gold, income);
+            //    if (bestRecruitmentPoint != null)
+            //    {
+            //        if (bestRecruitmentPoint is Unit bestRecruitmentUnit)
+            //        {
+
+            //            command +=
+            //                $"TRAIN {bestRecruitmentUnit.Level} {bestRecruitmentUnit.X} {bestRecruitmentUnit.Y};";
+            //            map[bestRecruitmentUnit.Y][bestRecruitmentUnit.X] = bestRecruitmentUnit;
+            //            int cost = GetUnitCost(bestRecruitmentUnit.Level);
+            //            gold -= cost;
+            //        }
+            //        else if (bestRecruitmentPoint is Building bestRecruitmentBuilding)
+            //        {
+            //            command += $"BUILD TOWER {bestRecruitmentBuilding.X} {bestRecruitmentBuilding.Y};";
+            //            map[bestRecruitmentBuilding.Y][bestRecruitmentBuilding.X] = bestRecruitmentBuilding;
+            //            gold -= TowerCost;
+            //        }
+            //    }
+            //    else 
+            //        break;//иначе падаем в бесконечный цикл
+            //}
+
+
             var mines = myBuildings.Where(b => b.BuildingType == 1).ToList();
             while (gold >= GetMineCost(mines.Count))
             {
@@ -732,36 +741,23 @@ class Player
                 if (point.Owner == 0)//my point
                 {
                     continue;
-                    //if (point is Building pointBuilding)
-                    //    continue;
-                    //if (point is Unit pointUnit)
-                    //    continue;
-                    //if (point.IsActive)//is active
-                    //    recruitmentPoints.Add(point);
                 }
-                else
-                {
-                    var isBorderPoint = i > 0 && map[i - 1][j] != null && map[i - 1][j].Owner == 0 && map[i-1][j].IsActive ||
-                                        i < map.Count - 1 && map[i + 1][j] != null && map[i + 1][j].Owner == 0 && map[i+1][j].IsActive ||
-                                        j > 0 && map[i][j - 1] != null && map[i][j - 1].Owner == 0 && map[i][j-1].IsActive ||
-                                        j < map[i].Count - 1 && map[i][j + 1] != null && map[i][j + 1].Owner == 0 && map[i][j+1].IsActive;
 
-                    if (!isBorderPoint)
-                        continue;
+                var neighbours = GetMapNeighbours(map, point, false);
+                if (!neighbours.Any(n => n != null && n.Owner == 0 && n.IsActive))
+                    continue;
 
-                    if (point.Owner == 1)//opp point
-                    {
-                        recruitmentPoints.Add(point);
-                    }
-                    else //neutral
-                    {
-                        recruitmentPoints.Add(point);
-                    }
-                }
+                recruitmentPoints.Add(point);
             }
         }
 
         return recruitmentPoints;
+    }
+
+    static IList<Point> GetRecruitmentPoints(IList<IList<Point>> map, Point point)
+    {
+        var neighbours = GetMapNeighbours(map, point, false).Where(n => n != null && n.Owner != 0).ToList();
+        return neighbours;
     }
 
     static int GetUnitCost(int level)
@@ -830,7 +826,13 @@ class Player
             if (unitUpkeep > income)
                 continue;
 
-            var killCount = GetKillCount(p, map, oppBase);
+            var curPoint = p;
+            map[p.Y][p.X] = new Unit(p.X, p.Y, 0, -1, 1);
+            var killCount = GetKillCount(map, oppBase);
+            if (IsTowerCell(p.X, p.Y, map, 1))
+                killCount++; //kill opp tower
+
+            map[p.Y][p.X] = curPoint;
             if (killCount < maxKillCount) continue;
 
 
@@ -945,8 +947,87 @@ class Player
 
     }
 
+    static int GetBestRecruitmentUnits(IList<IList<Point>> map, Building oppBase, int gold, Point pointFrom, out List<Unit> resUnits)
+    {
+        if (gold < RecruitmentCost1)
+        {
+            resUnits = new List<Unit>();
+            return GetKillCount(map, oppBase);
+        }
 
-    static int GetKillCount(Point step, IList<IList<Point>> map, Building oppBase)
+        var recruitmentPoints = pointFrom == null ? GetRecruitmentPoints(map) : GetRecruitmentPoints(map, pointFrom);
+        if (!recruitmentPoints.Any())
+        {
+            resUnits = new List<Unit>();
+            return GetKillCount(map, oppBase);
+        }
+
+        int maxKillCount = 0;
+        int minOppBaseDist = int.MaxValue;
+        var bestResUnits = new List<Unit>();
+
+        var hasRecPoint = false;
+        foreach (var rp in recruitmentPoints)
+        {
+            int level = GetMinRecruitmentUnitLevel(rp, map, 1);
+            var cost = GetUnitCost(level);
+            if (cost > gold) continue;
+
+            hasRecPoint = true;
+            var changePoint = rp;
+            var unit = new Unit(rp.X, rp.Y, 0, -1, level);
+            map[rp.Y][rp.X] = unit ;
+
+            var killCount = GetBestRecruitmentUnits(map, oppBase, gold - cost, rp, out var resUnitsCur);
+
+            if (rp is Building oppBuilding && oppBuilding.BuildingType == 2 || rp is Unit oppUnit)
+                killCount++;
+
+            map[rp.Y][rp.X] = changePoint;
+
+            if (killCount > maxKillCount || killCount == maxKillCount && GetManhDist(rp, oppBase) < minOppBaseDist)
+            {
+                maxKillCount = killCount;
+                minOppBaseDist = GetManhDist(rp, oppBase);
+                resUnitsCur.Insert(0, unit);
+                bestResUnits = resUnitsCur;
+            }
+        }
+
+        if (!hasRecPoint)
+        {
+            resUnits = new List<Unit>();
+            return GetKillCount(map, oppBase);
+        }
+
+        resUnits = bestResUnits;
+        return maxKillCount;
+    }
+
+    static int GetMinRecruitmentUnitLevel(Point point, IList<IList<Point>> map, int oppId)
+    {
+        if (point.Owner == -1) return 1;
+        if (IsTowerInfluenceCell(point.X, point.Y, map, oppId))
+            return 3;
+
+        if (point is Building building && building.BuildingType == 2) return 3;
+        if (point is Unit unit)
+        {
+            switch (unit.Level)
+            {
+                case 2:
+                case 3:
+                    return 3;
+                default:
+                    return 2;
+            }
+        }
+
+        return 1;
+    }
+
+
+    static int GetKillCount(IList<IList<Point>> map, Building oppBase)
     {
         var oppUnitsCount = 0;
         for (var i = 0; i < map.Count; ++i)
@@ -957,9 +1038,6 @@ class Player
                     oppUnitsCount++;
             }
         }
-
-        var mapPoint = map[step.Y][step.X];
-        map[step.Y][step.X] = new Unit(step.X, step.Y, 0, -1, 1);
 
         //BFS
         var newOppUnitsCount = 0;
@@ -1016,10 +1094,7 @@ class Player
         }
 
 
-        map[step.Y][step.X] = mapPoint;
         var killCount = oppUnitsCount - newOppUnitsCount;
-        if (IsTowerCell(mapPoint.X, mapPoint.Y, map, 1))
-            killCount++; //kill opp tower
         return killCount;
     }
 
