@@ -821,8 +821,9 @@ class Player
             map[srp.Y][srp.X] = srp;
         }
 
-        int maxDeltaKillCount = allMoveKilledPoints.Count - oppKilledCount;
-        Console.Error.WriteLine($"ALL MOVE: {allMoveKilledPoints.Count} - {oppKilledCount} = {maxDeltaKillCount}");
+        var moveKilledCount =  moves.Count(m => m.Item2 is Unit || m.Item2 is Building);
+        int maxDeltaKillCount = allMoveKilledPoints.Count + moveKilledCount - oppKilledCount;
+        Console.Error.WriteLine($"ALL MOVE: {allMoveKilledPoints.Count + moveKilledCount} - {oppKilledCount} = {maxDeltaKillCount}");
 
         Tuple<Unit, Point> bestMove = null;
         List<Unit> bestRecUnits = allMoveRecUnits;
@@ -838,6 +839,7 @@ class Player
             table[step.Y, step.X].Owner = step.Owner;
             table[step.Y, step.X].IsMySolder = false;
             table[unit.Y, unit.X].IsMySolder = true;
+            if (step is Unit || step is Building) moveKilledCount--;
 
 
             var neighbours = GetMapNeighbours(map, unit, false);
@@ -892,9 +894,9 @@ class Player
                     map[srp.Y][srp.X] = srp;
                 }
 
-                if (killedPoints.Count - oppKillCount > maxDeltaKillCount)
+                if (moveKilledCount + killedPoints.Count - oppKillCount > maxDeltaKillCount)
                 {
-                    maxDeltaKillCount = killedPoints.Count - oppKillCount;
+                    maxDeltaKillCount = moveKilledCount + killedPoints.Count - oppKillCount;
                     bestMove = new Tuple<Unit, Point>(unit, n);
                     bestRecUnits = recUnits;
                 }
@@ -907,6 +909,7 @@ class Player
             table[step.Y, step.X].Owner = 0;
             table[unit.Y, unit.X].IsMySolder = false;
             table[step.Y, step.X].IsMySolder = true;
+            if (step is Unit || step is Building) moveKilledCount++;
         }
 
         if (bestMove != null)
