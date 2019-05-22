@@ -644,7 +644,7 @@ class Player
 
     static int GetOppMaxKillCount(IList<Unit> oppUnits, IList<IList<Point>> map, Building myBase, Building oppBase, int oppGold)
     {
-        int maxKillCount = 0;
+        int maxKillCount = GetBestRecruitmentUnits(map, myBase, oppGold, null, out _).Count;
 
         foreach (var unit in oppUnits)
         {
@@ -685,125 +685,11 @@ class Player
     {
         var moves = new List<Tuple<Unit, Point>>();
 
-        int maxDeltaKillCount = -int.MaxValue;
-        Tuple<Unit, Point> bestMove = null;
-        List<Unit> bestRecUnits = null;
-
-        var oppKill = -7;
-        var isSameOppKill = true;
-
-        foreach (var unit in myUnits)
-        {
-            var neighbours = GetMapNeighbours(map, unit, false);
-            foreach (var n in neighbours)
-            {
-                if (n == null) continue;
-                if (n.Owner == 0) continue;
-                if (!CanMove(unit, n, map)) continue;
-
-                var savedUnit = unit;
-                var savedPoint = n;
-
-                map[unit.Y][unit.X] = new Point(unit.X, unit.Y, 0, true);
-                map[n.Y][n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
-                var activatedPoints = UpdateAfterMoveMap(map, myBase);
-
-                var killedPoints = GetBestRecruitmentUnits(map, oppBase, gold, n, out var recUnits);
-
-                var savedRecPoints = new List<Point>();
-                foreach (var ru in recUnits)
-                {
-                    savedRecPoints.Add(map[ru.Y][ru.X]);
-                    map[ru.Y][ru.X] = ru;
-                }
-
-                var aliveOppUnits = new List<Unit>();
-                foreach (var oppUnit in oppUnits)
-                {
-                    var isDead = false;
-                    foreach (var kp in killedPoints)
-                    {
-                        if (kp is Unit killedOppUnit)
-                        {
-                            if (killedOppUnit.Id == oppUnit.Id)
-                            {
-                                isDead = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!isDead)
-                        aliveOppUnits.Add(oppUnit);
-                }
-                var oppKillCount = GetOppMaxKillCount(aliveOppUnits, map, myBase, oppBase, oppGold + oppIncome);
-                if (oppKill == -7)
-                    oppKill = oppKillCount;
-                else
-                {
-                    if (oppKill != oppKillCount)
-                    {
-                        isSameOppKill = false;
-                    }
-                }
-                
-                map[unit.Y][unit.X] = savedUnit;
-                map[n.Y][n.X] = savedPoint;
-                foreach (var p in activatedPoints)
-                    p.IsActive = false;
-                foreach (var srp in savedRecPoints)
-                {
-                    map[srp.Y][srp.X] = srp;
-                }
-
-                if (killedPoints.Count - oppKillCount > maxDeltaKillCount)
-                {
-                    maxDeltaKillCount = killedPoints.Count - oppKillCount;
-                    bestMove = new Tuple<Unit, Point>(unit, n);
-                    bestRecUnits = recUnits;
-                }
-            }
-        }
-
-       
-
-        Unit recMoveUnit = null;
-        if (bestMove != null)
-        {
-            if (!isSameOppKill)
-            {
-                moves.Add(bestMove);
-                recMoveUnit = bestMove.Item1;
-
-                recMoveUnit.X = bestMove.Item2.X;
-                recMoveUnit.Y = bestMove.Item2.Y;
-
-                map[recMoveUnit.Y][recMoveUnit.X] = new Point(recMoveUnit.Y, recMoveUnit.X, 0, true);
-                map[bestMove.Item2.Y][bestMove.Item2.X] = new Unit(recMoveUnit.X,
-                    recMoveUnit.Y,
-                    recMoveUnit.Owner,
-                    recMoveUnit.Id,
-                    recMoveUnit.Level);
-
-                table[bestMove.Item2.Y, bestMove.Item2.X].Owner = 0;
-                table[recMoveUnit.Y, recMoveUnit.X].IsMySolder = false;
-                table[bestMove.Item2.Y, bestMove.Item2.X].IsMySolder = true;
-
-                foreach (var recUnit in bestRecUnits)
-                {
-                    map[recUnit.Y][recUnit.X] = recUnit;
-
-                    table[recUnit.Y, recUnit.X].Owner = 0;
-                    table[recUnit.Y, recUnit.X].IsMySolder = true;
-                }
-            }
-        }
-
-
-        //ходим всеми оставшимися
+        //ходим всеми
         var endPoint = table[oppBase.Y, oppBase.X];
         myUnits = myUnits.OrderBy(u => GetManhDist(u, oppBase)).ToList();
         var noWayUnits = new List<Unit>();
-        foreach (var myUnit in myUnits.Where(u => !Equals(u, recMoveUnit)))
+        foreach (var myUnit in myUnits)
         {
             var startPoint = table[myUnit.Y, myUnit.X];
             var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map);
@@ -829,9 +715,6 @@ class Player
             if (CanMove(myUnit, map[step.Y][step.X], map))
             {
                 moves.Add(new Tuple<Unit, Point>(myUnit, map[step.Y][step.X]));
-
-                myUnit.X = step.X;
-                myUnit.Y = step.Y;
 
                 map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
                 map[step.Y][step.X] = new Unit(step.X, step.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
@@ -889,9 +772,6 @@ class Player
             {
                 moves.Add(new Tuple<Unit, Point>(bestUnit, map[bestStep.Y][bestStep.X]));
 
-                bestUnit.X = bestStep.X;
-                bestUnit.Y = bestStep.Y;
-
                 map[bestUnit.Y][bestUnit.X] = new Point(bestUnit.X, bestUnit.Y, 0, true);
                 map[bestStep.Y][bestStep.X] =
                     new Unit(bestStep.X, bestStep.Y, bestUnit.Owner, bestUnit.Id, bestUnit.Level);
@@ -906,19 +786,204 @@ class Player
 
         }
 
+        var allMoveKilledPoints = GetBestRecruitmentUnits(map, oppBase, gold, null, out var allMoveRecUnits);
 
-        if (isSameOppKill || bestMove == null)
+        var allMoveSavedRecPoints = new List<Point>();
+        foreach (var ru in allMoveRecUnits)
         {
-            //запускаем найм еще раз на обновленной карте
-            GetBestRecruitmentUnits(map, oppBase, gold, null, out bestRecUnits);
-            foreach (var recUnit in bestRecUnits)
-            {
-                map[recUnit.Y][recUnit.X] = recUnit;
+            allMoveSavedRecPoints.Add(map[ru.Y][ru.X]);
+            map[ru.Y][ru.X] = ru;
+        }
 
-                table[recUnit.Y, recUnit.X].Owner = 0;
-                table[recUnit.Y, recUnit.X].IsMySolder = true;
+        var allMoveAliveOppUnits = new List<Unit>();
+        foreach (var oppUnit in oppUnits)
+        {
+            var isDead = false;
+            foreach (var kp in allMoveKilledPoints)
+            {
+                if (kp is Unit killedOppUnit)
+                {
+                    if (killedOppUnit.Id == oppUnit.Id)
+                    {
+                        isDead = true;
+                        break;
+                    }
+                }
+            }
+            if (!isDead)
+                allMoveAliveOppUnits.Add(oppUnit);
+        }
+
+        var oppKilledCount = GetOppMaxKillCount(allMoveAliveOppUnits, map, myBase, oppBase, oppGold + oppIncome);
+        
+        foreach (var srp in allMoveSavedRecPoints)
+        {
+            map[srp.Y][srp.X] = srp;
+        }
+
+        int maxDeltaKillCount = allMoveKilledPoints.Count - oppKilledCount;
+        Console.Error.WriteLine($"ALL MOVE: {allMoveKilledPoints.Count} - {oppKilledCount} = {maxDeltaKillCount}");
+
+        Tuple<Unit, Point> bestMove = null;
+        List<Unit> bestRecUnits = allMoveRecUnits;
+
+        foreach (var move in moves)
+        {
+            var unit = move.Item1;
+            var step = move.Item2;
+
+            map[unit.Y][unit.X] = unit;
+            map[step.Y][step.X] = step;
+
+            table[step.Y, step.X].Owner = step.Owner;
+            table[step.Y, step.X].IsMySolder = false;
+            table[unit.Y, unit.X].IsMySolder = true;
+
+
+            var neighbours = GetMapNeighbours(map, unit, false);
+            foreach (var n in neighbours)
+            {
+                if (n == null) continue;
+                if (n.Owner == 0) continue;
+                if (!CanMove(unit, n, map)) continue;
+
+                var savedUnit = unit;
+                var savedPoint = n;
+
+                map[unit.Y][unit.X] = new Point(unit.X, unit.Y, 0, true);
+                map[n.Y][n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
+                var activatedPoints = UpdateAfterMoveMap(map, myBase);
+
+                var killedPoints = GetBestRecruitmentUnits(map, oppBase, gold, n, out var recUnits);
+
+                var savedRecPoints = new List<Point>();
+                foreach (var ru in recUnits)
+                {
+                    savedRecPoints.Add(map[ru.Y][ru.X]);
+                    map[ru.Y][ru.X] = ru;
+                }
+
+                var aliveOppUnits = new List<Unit>();
+                foreach (var oppUnit in oppUnits)
+                {
+                    var isDead = false;
+                    foreach (var kp in killedPoints)
+                    {
+                        if (kp is Unit killedOppUnit)
+                        {
+                            if (killedOppUnit.Id == oppUnit.Id)
+                            {
+                                isDead = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (!isDead)
+                        aliveOppUnits.Add(oppUnit);
+                }
+                var oppKillCount = GetOppMaxKillCount(aliveOppUnits, map, myBase, oppBase, oppGold + oppIncome);
+               
+                map[unit.Y][unit.X] = savedUnit;
+                map[n.Y][n.X] = savedPoint;
+                foreach (var p in activatedPoints)
+                    p.IsActive = false;
+                foreach (var srp in savedRecPoints)
+                {
+                    map[srp.Y][srp.X] = srp;
+                }
+
+                if (killedPoints.Count - oppKillCount > maxDeltaKillCount)
+                {
+                    maxDeltaKillCount = killedPoints.Count - oppKillCount;
+                    bestMove = new Tuple<Unit, Point>(unit, n);
+                    bestRecUnits = recUnits;
+                }
+            }
+
+
+            map[unit.Y][unit.X] = new Point(unit.X, unit.Y, 0, true);
+            map[step.Y][step.X] = new Unit(step.X, step.Y, unit.Owner, unit.Id, unit.Level);
+
+            table[step.Y, step.X].Owner = 0;
+            table[unit.Y, unit.X].IsMySolder = false;
+            table[step.Y, step.X].IsMySolder = true;
+        }
+
+        if (bestMove != null)
+        {
+            Console.Error.WriteLine($"BEST: {maxDeltaKillCount}");
+
+            var bestMoveUnit = bestMove.Item1;
+            var bestMovePoint = bestMove.Item2;
+
+            moves.RemoveAll(m => m.Item1.Id == bestMoveUnit.Id);
+            moves.Add(bestMove);
+
+            map[bestMoveUnit.Y][bestMoveUnit.X] = new Point(bestMoveUnit.X, bestMoveUnit.Y, 0, true);
+            map[bestMovePoint.Y][bestMovePoint.X] = new Unit(bestMovePoint.X, bestMovePoint.Y, bestMoveUnit.Owner, bestMoveUnit.Id, bestMoveUnit.Level);
+            UpdateAfterMoveMap(map, myBase);
+            
+            foreach (var ru in bestRecUnits)
+            {
+                map[ru.Y][ru.X] = ru;
             }
         }
+
+
+
+        
+
+        
+
+       
+
+        //Unit recMoveUnit = null;
+        //if (bestMove != null)
+        //{
+        //    if (!isSameOppKill)
+        //    {
+        //        moves.Add(bestMove);
+        //        recMoveUnit = bestMove.Item1;
+
+        //        recMoveUnit.X = bestMove.Item2.X;
+        //        recMoveUnit.Y = bestMove.Item2.Y;
+
+        //        map[recMoveUnit.Y][recMoveUnit.X] = new Point(recMoveUnit.Y, recMoveUnit.X, 0, true);
+        //        map[bestMove.Item2.Y][bestMove.Item2.X] = new Unit(recMoveUnit.X,
+        //            recMoveUnit.Y,
+        //            recMoveUnit.Owner,
+        //            recMoveUnit.Id,
+        //            recMoveUnit.Level);
+
+        //        table[bestMove.Item2.Y, bestMove.Item2.X].Owner = 0;
+        //        table[recMoveUnit.Y, recMoveUnit.X].IsMySolder = false;
+        //        table[bestMove.Item2.Y, bestMove.Item2.X].IsMySolder = true;
+
+        //        foreach (var recUnit in bestRecUnits)
+        //        {
+        //            map[recUnit.Y][recUnit.X] = recUnit;
+
+        //            table[recUnit.Y, recUnit.X].Owner = 0;
+        //            table[recUnit.Y, recUnit.X].IsMySolder = true;
+        //        }
+        //    }
+        //}
+
+
+       
+
+        //if (isSameOppKill || bestMove == null)
+        //{
+        //    //запускаем найм еще раз на обновленной карте
+        //    GetBestRecruitmentUnits(map, oppBase, gold, null, out bestRecUnits);
+        //    foreach (var recUnit in bestRecUnits)
+        //    {
+        //        map[recUnit.Y][recUnit.X] = recUnit;
+
+        //        table[recUnit.Y, recUnit.X].Owner = 0;
+        //        table[recUnit.Y, recUnit.X].IsMySolder = true;
+        //    }
+        //}
 
         return new Command() {RecruitmentUnits = bestRecUnits, Moves = moves};
     }
