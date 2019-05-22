@@ -360,6 +360,10 @@ namespace MapPoints
             IsActive = isActive;
         }
 
+        public override string ToString()
+        {
+            return $"{X} {Y}";
+        }
     }
 
     public class Building : Point
@@ -675,12 +679,11 @@ class Player
             moves.Add(bestMove);
             recMoveUnit = bestMove.Item1;
 
-            map[recMoveUnit.Y][recMoveUnit.X] = new Point(recMoveUnit.Y, recMoveUnit.X, -1, true);
-            map[bestMove.Item2.Y][bestMove.Item2.X] = new Unit(bestMove.Item2.X,
-                bestMove.Item2.Y,
-                recMoveUnit.Owner,
-                recMoveUnit.Id,
-                recMoveUnit.Level);
+            recMoveUnit.X = bestMove.Item2.X;
+            recMoveUnit.Y = bestMove.Item2.Y;
+
+            map[recMoveUnit.Y][recMoveUnit.X] = new Point(recMoveUnit.Y, recMoveUnit.X, 0, true);
+            map[bestMove.Item2.Y][bestMove.Item2.X] = new Unit(recMoveUnit.X, recMoveUnit.Y, recMoveUnit.Owner, recMoveUnit.Id, recMoveUnit.Level);
 
             table[bestMove.Item2.Y, bestMove.Item2.X].Owner = 0;
             table[recMoveUnit.Y, recMoveUnit.X].IsMySolder = false;
@@ -718,6 +721,9 @@ class Player
             if (CanMove(myUnit, map[step.Y][step.X], map))
             {
                 moves.Add(new Tuple<Unit, Point>(myUnit, map[step.Y][step.X]));
+
+                myUnit.X = step.X;
+                myUnit.Y = step.Y;
 
                 map[myUnit.Y][myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
                 map[step.Y][step.X] = new Unit(step.X, step.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
@@ -774,6 +780,10 @@ class Player
             if (CanMove(bestUnit, map[bestStep.Y][bestStep.X], map))
             {
                 moves.Add(new Tuple<Unit, Point>(bestUnit, map[bestStep.Y][bestStep.X]));
+
+                bestUnit.X = bestStep.X;
+                bestUnit.Y = bestStep.Y;
+
                 map[bestUnit.Y][bestUnit.X] = new Point(bestUnit.X, bestUnit.Y, 0, true);
                 map[bestStep.Y][bestStep.X] =
                     new Unit(bestStep.X, bestStep.Y, bestUnit.Owner, bestUnit.Id, bestUnit.Level);
