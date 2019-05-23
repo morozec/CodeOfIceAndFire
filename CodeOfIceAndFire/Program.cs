@@ -945,7 +945,8 @@ class Player
                 var savedUnit = unit;
                 var savedPoint = n;
 
-                map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
+                if (!moves.Any(m => m.Item2.X == unit.X && m.Item2.Y == unit.Y))
+                    map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
                 map[n.Y,n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
 
                 var resOppGold = oppGold + oppIncome + allMoveOppAddGold;
@@ -992,8 +993,8 @@ class Player
                 }
             }
 
-
-            map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
+            if (!moves.Any(m => m.Item2.X == unit.X && m.Item2.Y == unit.Y))
+                map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
             map[step.Y,step.X] = new Unit(step.X, step.Y, unit.Owner, unit.Id, unit.Level);
 
             table[step.Y, step.X].Owner = 0;
