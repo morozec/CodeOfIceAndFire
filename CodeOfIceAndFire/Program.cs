@@ -847,6 +847,7 @@ class Player
             {
                 if (n == null) continue;
                 if (n.Owner == 0) continue;
+                if (n.X == step.X && n.Y == step.Y) continue;//этот ход уже рассмотрели
                 if (!CanMove(unit, n, map)) continue;
 
                 var savedUnit = unit;
