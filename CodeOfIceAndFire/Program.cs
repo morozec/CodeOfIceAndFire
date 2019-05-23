@@ -339,6 +339,27 @@ namespace AStar
 
 namespace MapPoints
 {
+    public class LossContainer
+    {
+        public List<Unit> KilledUnits { get; set; }
+        public List<Building> KilledBuildings { get; set; }
+        public List<Point> LostPoint { get; set; }
+
+        public LossContainer()
+        {
+            KilledUnits = new List<Unit>();
+            KilledBuildings = new List<Building>();
+            LostPoint = new List<Point>();
+        }
+
+        public void Add(LossContainer lc)
+        {
+            KilledUnits.AddRange(lc.KilledUnits);
+            KilledBuildings.AddRange(lc.KilledBuildings);
+            LostPoint.AddRange(lc.LostPoint);
+        }
+    }
+
     public class Command
     {
         public IList<Unit> RecruitmentUnits { get; set; }
@@ -677,6 +698,22 @@ class Player
         return maxKillCount;
     }
 
+    static IList<Unit> GetAliveOppUnit(Point[,] map)
+    {
+        //находим живых врагов
+        var allMoveAliveOppUnits = new List<Unit>();
+        for (var i = 0; i < Size; i++)
+        {
+            for (var j = 0; j < Size; ++j)
+            {
+                if (map[i, j] != null && map[i, j] is Unit mapUnit && mapUnit.Owner == 1)
+                    allMoveAliveOppUnits.Add(mapUnit);
+            }
+        }
+
+        return allMoveAliveOppUnits;
+    }
+
     static Command GetCommand(
         IList<Unit> myUnits, IList<Unit> oppUnits, Point[,] map, Building myBase, Building oppBase, int gold, AStarPoint[,] table, IList<AStarPoint> allPoints,
         int oppGold, int oppIncome)
@@ -784,52 +821,23 @@ class Player
 
         }
 
-        var activatedPoints = UpdateAfterMoveMap(map, myBase);
-
-        var allMoveKilledPoints = GetBestRecruitmentUnits(map, oppBase, gold, null, out var allMoveRecUnits);
-
-        var allMoveSavedRecPoints = new List<Point>();
-        foreach (var ru in allMoveRecUnits)
-        {
-            allMoveSavedRecPoints.Add(map[ru.Y,ru.X]);
-            map[ru.Y,ru.X] = ru;
-        }
-
-        var allMoveAliveOppUnits = new List<Unit>();
-        foreach (var oppUnit in oppUnits)
-        {
-            var isDead = false;
-            foreach (var kp in allMoveKilledPoints)
-            {
-                if (kp is Unit killedOppUnit)
-                {
-                    if (killedOppUnit.Id == oppUnit.Id)
-                    {
-                        isDead = true;
-                        break;
-                    }
-                }
-            }
-            if (!isDead)
-                allMoveAliveOppUnits.Add(oppUnit);
-        }
-
-        var oppKilledCount = GetOppMaxKillCount(allMoveAliveOppUnits, map, myBase, oppBase, oppGold + oppIncome);
+        var activatedPoints = UpdateAfterMoveMap(map, myBase);//активируем мои точки в результате движения юнитов
+        var allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, null, out var allMoveRecUnits);
+        var allMoveCapturedNeutralPoints = UpdateMap(map, allMoveRecUnits, allMoveLc);
+       
+       
+        var oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, oppGold + oppIncome);
+        UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedNeutralPoints);
         
-        foreach (var srp in allMoveSavedRecPoints)
-        {
-            map[srp.Y,srp.X] = srp;
-        }
 
         var moveKilledCount =  moves.Count(m => m.Item2 is Unit || m.Item2 is Building);
-        int maxDeltaKillCount = allMoveKilledPoints.Count + moveKilledCount - oppKilledCount;
-        Console.Error.WriteLine($"ALL MOVE: {allMoveKilledPoints.Count + moveKilledCount} - {oppKilledCount} = {maxDeltaKillCount}");
+        int maxDeltaKillCount = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount - oppKilledCount;
+        Console.Error.WriteLine(
+            $"ALL MOVE: {allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount} - {oppKilledCount} = {maxDeltaKillCount}");
 
         Tuple<Unit, Point> bestMove = null;
         List<Unit> bestRecUnits = allMoveRecUnits;
-
-        foreach (var ap in activatedPoints)
-            ap.IsActive = false;
+      
         foreach (var move in moves)
         {
             var unit = move.Item1;
@@ -858,45 +866,19 @@ class Player
                 map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
                 map[n.Y,n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
 
-                var killedPoints = GetBestRecruitmentUnits(map, oppBase, gold, n, out var recUnits);
-
-                var savedRecPoints = new List<Point>();
-                foreach (var ru in recUnits)
-                {
-                    savedRecPoints.Add(map[ru.Y,ru.X]);
-                    map[ru.Y,ru.X] = ru;
-                }
-
-                var aliveOppUnits = new List<Unit>();
-                foreach (var oppUnit in oppUnits)
-                {
-                    var isDead = false;
-                    foreach (var kp in killedPoints)
-                    {
-                        if (kp is Unit killedOppUnit)
-                        {
-                            if (killedOppUnit.Id == oppUnit.Id)
-                            {
-                                isDead = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!isDead)
-                        aliveOppUnits.Add(oppUnit);
-                }
-                var oppKillCount = GetOppMaxKillCount(aliveOppUnits, map, myBase, oppBase, oppGold + oppIncome);
+                //активировать точки тут смысла нет, т.к. тренировка всегда будет рядом с мувом
+                var lc = GetBestRecruitmentUnits(map, oppBase, gold, n, out var recUnits);
+                var capturedNeutralPoints = UpdateMap(map, recUnits, lc);
                
-                map[unit.Y,unit.X] = savedUnit;
-                map[n.Y,n.X] = savedPoint;
-                foreach (var srp in savedRecPoints)
-                {
-                    map[srp.Y,srp.X] = srp;
-                }
+                var oppKillCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, oppGold + oppIncome);
 
-                if (moveKilledCount + killedPoints.Count - oppKillCount > maxDeltaKillCount)
+                map[unit.Y, unit.X] = savedUnit;
+                map[n.Y, n.X] = savedPoint;
+                UpdateMapBack(map, lc, new List<Point>(), capturedNeutralPoints);
+
+                if (moveKilledCount + lc.KilledUnits.Count + lc.KilledBuildings.Count - oppKillCount > maxDeltaKillCount)
                 {
-                    maxDeltaKillCount = moveKilledCount + killedPoints.Count - oppKillCount;
+                    maxDeltaKillCount = moveKilledCount + lc.KilledUnits.Count + lc.KilledBuildings.Count - oppKillCount;
                     bestMove = new Tuple<Unit, Point>(unit, n);
                     bestRecUnits = recUnits;
                 }
@@ -924,7 +906,6 @@ class Player
 
             map[bestMoveUnit.Y,bestMoveUnit.X] = new Point(bestMoveUnit.X, bestMoveUnit.Y, 0, true);
             map[bestMovePoint.Y,bestMovePoint.X] = new Unit(bestMovePoint.X, bestMovePoint.Y, bestMoveUnit.Owner, bestMoveUnit.Id, bestMoveUnit.Level);
-            UpdateAfterMoveMap(map, myBase);
             
             foreach (var ru in bestRecUnits)
             {
@@ -1062,18 +1043,22 @@ class Player
     }
 
 
-    static IList<Point> GetBestRecruitmentUnits(Point[,] map, Building oppBase, int gold, Point pointFrom, out List<Unit> resUnits)
+    static LossContainer GetBestRecruitmentUnits(Point[,] map, Building oppBase, int gold, Point pointFrom, out List<Unit> resUnits)
     {
-        var killedPoints = new List<Point>();
-        if(pointFrom != null && pointFrom.Owner == oppBase.Owner &&
-                        (pointFrom is Unit || pointFrom is Building building && building.BuildingType == 2))
-            killedPoints.Add(pointFrom);
+        var lc = new LossContainer();
+        if (pointFrom != null && pointFrom.Owner == oppBase.Owner)
+        {
+            if (pointFrom is Unit pUnit)
+                lc.KilledUnits.Add(pUnit);
+            else if (pointFrom is Building pBuilding && pBuilding.BuildingType == 2)
+                lc.KilledBuildings.Add(pBuilding);
+        }
 
         if (gold < RecruitmentCost1)
         {
             resUnits = new List<Unit>();
-            killedPoints.AddRange(GetKillUnits(map, oppBase));
-            return killedPoints;
+            lc.Add(GetLossContainer(map, oppBase));
+            return lc;
         }
 
         int owner = oppBase.Owner == 1 ? 0 : 1;
@@ -1084,11 +1069,11 @@ class Player
         if (!recruitmentPoints.Any())
         {
             resUnits = new List<Unit>();
-            killedPoints.AddRange(GetKillUnits(map, oppBase));
-            return killedPoints;
+            lc.Add(GetLossContainer(map, oppBase));
+            return lc;
         }
 
-        IList<Point> maxKilledPoints = new List<Point>();
+        LossContainer bestLc = null;
         int minOppBaseDist = int.MaxValue;
         var bestResUnits = new List<Unit>();
 
@@ -1105,13 +1090,15 @@ class Player
             map[rp.Y,rp.X] = unit ;
 
 
-            var killedPointsCur = GetBestRecruitmentUnits(map, oppBase, gold - cost, rp, out var resUnitsCur);
+            var lcCur = GetBestRecruitmentUnits(map, oppBase, gold - cost, rp, out var resUnitsCur);
 
             map[rp.Y,rp.X] = changePoint;
 
-            if (killedPointsCur.Count > maxKilledPoints.Count || killedPointsCur.Count == maxKilledPoints.Count && GetManhDist(rp, oppBase) < minOppBaseDist)
+            //TODO: нормальный критерий
+            if (bestLc == null || lcCur.KilledUnits.Count > bestLc.KilledUnits.Count ||
+                lcCur.KilledUnits.Count == bestLc.KilledUnits.Count && GetManhDist(rp, oppBase) < minOppBaseDist)
             {
-                maxKilledPoints = killedPointsCur;
+                bestLc = lcCur;
                 minOppBaseDist = GetManhDist(rp, oppBase);
                 resUnitsCur.Insert(0, unit);
                 bestResUnits = resUnitsCur;
@@ -1121,13 +1108,13 @@ class Player
         if (!hasRecPoint)
         {
             resUnits = new List<Unit>();
-            killedPoints.AddRange(GetKillUnits(map, oppBase));
-            return killedPoints;
+            lc.Add(GetLossContainer(map, oppBase));
+            return lc;
         }
 
         resUnits = bestResUnits;
-        killedPoints.AddRange(maxKilledPoints);
-        return killedPoints;
+        lc.Add(bestLc);
+        return lc;
     }
 
     static int GetMinRecruitmentUnitLevel(Point point, Point[,] map, int oppId)
@@ -1224,17 +1211,17 @@ class Player
     }
 
 
-    static IList<Unit> GetKillUnits(Point[,] map, Building oppBase)
+    static LossContainer GetLossContainer(Point[,] map, Building oppBase)
     {
-        var aliveUnits = new Dictionary<Unit, bool>();
-        for (var i = 0; i < Size; ++i)
-        {
-            for (var j = 0; j < Size; ++j)
-            {
-                if (map[i,j] is Unit mapUnit && mapUnit.Owner == oppBase.Owner)
-                    aliveUnits.Add(mapUnit, true);
-            }
-        }
+        //var aliveUnits = new Dictionary<Unit, bool>();
+        //for (var i = 0; i < Size; ++i)
+        //{
+        //    for (var j = 0; j < Size; ++j)
+        //    {
+        //        if (map[i,j] is Unit mapUnit && mapUnit.Owner == oppBase.Owner)
+        //            aliveUnits.Add(mapUnit, true);
+        //    }
+        //}
 
         //BFS
 
@@ -1247,8 +1234,8 @@ class Player
         while (queue.Count > 0)
         {
             var p = queue.Pop();
-            if (p is Unit pUnit && pUnit.Owner == oppBase.Owner)
-                aliveUnits.Remove(pUnit);
+            //if (p is Unit pUnit && pUnit.Owner == oppBase.Owner)
+            //    aliveUnits.Remove(pUnit);
            
             if (p.Y > 0)
             {
@@ -1290,8 +1277,22 @@ class Player
             }
         }
 
+        var lc = new LossContainer();
+        for (var i = 0; i < Size; ++i)
+        {
+            for (var j = 0; j < Size; ++j)
+            {
+                if (!discoveredPoints[i, j] && map[i,j] != null && map[i, j].Owner == oppBase.Owner && map[i, j].IsActive)
+                {
+                    if (map[i,j] is Unit unit)
+                        lc.KilledUnits.Add(unit);
+                    else if (!(map[i,j] is Building))
+                        lc.LostPoint.Add(map[i,j]);
+                }
+            }
+        }
 
-        return aliveUnits.Keys.ToList();
+        return lc;
     }
 
     //static bool IsMyPoint(char c)
@@ -1440,6 +1441,56 @@ class Player
         }
 
         return map;
+    }
+
+    static IList<Point> UpdateMap(Point[,] map, IList<Unit> recUnits, LossContainer lc)
+    {
+        var capturedNeutralPoints = new List<Point>();
+        foreach (var ru in recUnits)
+        {
+            if (map[ru.Y, ru.X].Owner == -1) //точки врага будут в lc
+                capturedNeutralPoints.Add(map[ru.Y, ru.X]);
+            map[ru.Y, ru.X] = ru;
+        }
+
+        foreach (var unit in lc.KilledUnits)
+        {
+            if (map[unit.Y, unit.X].Owner == unit.Owner)//точка не занята мной, лишь отрезана
+                map[unit.Y, unit.X] = new Point(unit.X, unit.Y, unit.Owner, false);
+        }
+
+        foreach (var point in lc.LostPoint)
+        {
+            if (map[point.Y, point.X].Owner == point.Owner)//точка не занята мной, лишь отрезана
+                map[point.Y, point.X] = new Point(point.X, point.Y, point.Owner, false);
+        }
+
+        return capturedNeutralPoints;
+    }
+
+    static void UpdateMapBack(Point[,] map, LossContainer lc, IList<Point> activatedPoint, IList<Point> capturedNeutralPoints)
+    {
+        foreach (var unit in lc.KilledUnits)
+        {
+            map[unit.Y, unit.X] = unit;
+        }
+
+        foreach (var building in lc.KilledBuildings)
+        {
+            map[building.Y, building.X] = building;
+        }
+
+        foreach (var lp in lc.LostPoint)
+        {
+            map[lp.Y,lp.X] = lp;
+        }
+
+        foreach (var ap in activatedPoint)
+            ap.IsActive = false;
+
+        foreach (var cp in capturedNeutralPoints)
+            map[cp.Y, cp.X] = cp;
+
     }
 
     static IList<Point> UpdateAfterMoveMap(Point[,] map, Building myBase)
