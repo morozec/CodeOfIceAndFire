@@ -566,6 +566,7 @@ class Player
                 myBase,
                 oppBase,
                 gold,
+                income,
                 table,
                 allPoints,
                 opponentGold,
@@ -727,7 +728,7 @@ class Player
     }
 
     static Command GetCommand(
-        IList<Unit> myUnits, IList<Unit> oppUnits, Point[,] map, Building myBase, Building oppBase, int gold, AStarPoint[,] table, IList<AStarPoint> allPoints,
+        IList<Unit> myUnits, IList<Unit> oppUnits, Point[,] map, Building myBase, Building oppBase, int gold, int income, AStarPoint[,] table, IList<AStarPoint> allPoints,
         int oppGold, int oppIncome)
     {
         var moves = new List<Tuple<Unit, Point>>();
@@ -860,7 +861,7 @@ class Player
         var allMoveResOppGold = oppGold + oppIncome + allMoveOppAddGold;
 
         var activatedPoints = UpdateAfterMoveMap(map, myBase);//активируем мои точки в результате движения юнитов
-        var allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, null, out var allMoveRecUnits);
+        var allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, income, null, out var allMoveRecUnits);
 
         foreach (var ru in allMoveRecUnits)//снимаем 1 за захваченные тренировкой точки врага
         {
@@ -952,7 +953,7 @@ class Player
                 var resOppGold = oppGold + oppIncome + allMoveOppAddGold;
 
                 //активировать точки тут смысла нет, т.к. тренировка всегда будет рядом с мувом
-                var lc = GetBestRecruitmentUnits(map, oppBase, gold, n, out var recUnits);
+                var lc = GetBestRecruitmentUnits(map, oppBase, gold, income, n, out var recUnits);
 
                 foreach (var ru in recUnits)//снимаем 1 за захваченные тренировкой точки врага
                 {
@@ -1176,7 +1177,7 @@ class Player
     }
 
 
-    static LossContainer GetBestRecruitmentUnits(Point[,] map, Building oppBase, int gold, Point pointFrom, out List<Unit> resUnits)
+    static LossContainer GetBestRecruitmentUnits(Point[,] map, Building oppBase, int gold, int income, Point pointFrom, out List<Unit> resUnits)
     {
         var lc = new LossContainer();
         if (pointFrom != null && pointFrom.Owner == oppBase.Owner)
@@ -1215,7 +1216,10 @@ class Player
         {
             int level = GetMinRecruitmentUnitLevel(rp, map, 1);
             var cost = GetUnitCost(level);
+            var upkeep = GetUnitUpkeep(level) - 1; //-1 за захваченную точку
             if (cost > gold) continue;
+            if (upkeep > income) continue;
+
 
             hasRecPoint = true;
             var changePoint = rp;
@@ -1223,7 +1227,7 @@ class Player
             map[rp.Y,rp.X] = unit ;
 
 
-            var lcCur = GetBestRecruitmentUnits(map, oppBase, gold - cost, rp, out var resUnitsCur);
+            var lcCur = GetBestRecruitmentUnits(map, oppBase, gold - cost, income - upkeep, rp, out var resUnitsCur);
 
             map[rp.Y,rp.X] = changePoint;
 
