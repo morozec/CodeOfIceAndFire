@@ -72,6 +72,10 @@ namespace AStar
             var aStarGoal = goal as AStarPoint;
             if (unit.Level < 3 && Player.IsTowerInfluenceCell(aStarGoal.X, aStarGoal.Y, map, unit.Owner == 0 ? 1 : 0))
                 return BIG_WEIGHT;
+            if (map[aStarGoal.Y, aStarGoal.X] is Unit mUnit && mUnit.Owner != unit.Owner &&
+                (unit.Level != 3 && unit.Level <= mUnit.Level))
+                return BIG_WEIGHT;
+
 
             double cost = Weight + Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y) * aStarGoal.Weight;
             if (aStarGoal.Owner == 1)
@@ -831,9 +835,10 @@ class Player
         
 
         var moveKilledCount =  moves.Count(m => m.Item2 is Unit || m.Item2 is Building);
-        int maxDeltaKillCount = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount - oppKilledCount;
+        var maxSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
+        int maxDeltaKillCount = maxSumKill - oppKilledCount;
         Console.Error.WriteLine(
-            $"ALL MOVE: {allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount} - {oppKilledCount} = {maxDeltaKillCount}");
+            $"ALL MOVE: {maxSumKill} - {oppKilledCount} = {maxDeltaKillCount}");
 
         Tuple<Unit, Point> bestMove = null;
         List<Unit> bestRecUnits = allMoveRecUnits;
@@ -876,9 +881,12 @@ class Player
                 map[n.Y, n.X] = savedPoint;
                 UpdateMapBack(map, lc, new List<Point>(), capturedNeutralPoints);
 
-                if (moveKilledCount + lc.KilledUnits.Count + lc.KilledBuildings.Count - oppKillCount > maxDeltaKillCount)
+                var sumKill = moveKilledCount + lc.KilledUnits.Count + lc.KilledBuildings.Count;
+
+                if (sumKill - oppKillCount > maxDeltaKillCount || sumKill - oppKillCount == maxDeltaKillCount && sumKill > maxSumKill)
                 {
-                    maxDeltaKillCount = moveKilledCount + lc.KilledUnits.Count + lc.KilledBuildings.Count - oppKillCount;
+                    maxDeltaKillCount = sumKill - oppKillCount;
+                    maxSumKill = sumKill;
                     bestMove = new Tuple<Unit, Point>(unit, n);
                     bestRecUnits = recUnits;
                 }
