@@ -644,7 +644,7 @@ class Player
 
     static int GetOppMaxKillCount(IList<Unit> oppUnits, Point[,] map, Building myBase, Building oppBase, int oppGold)
     {
-        int maxKillCount = GetBestRecruitmentUnits(map, myBase, oppGold, null, out _).Count;
+        int maxKillCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, null, out _);
 
         foreach (var unit in oppUnits)
         {
@@ -661,14 +661,14 @@ class Player
                 map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
                 map[n.Y,n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
 
-                var killedPoints = GetBestRecruitmentUnits(map, myBase, oppGold, n, out _);
+                var killedPointsCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, n, out _);
                 
                 map[unit.Y,unit.X] = savedUnit;
                 map[n.Y,n.X] = savedPoint;
 
-                if (killedPoints.Count > maxKillCount)
+                if (killedPointsCount > maxKillCount)
                 {
-                    maxKillCount = killedPoints.Count;
+                    maxKillCount = killedPointsCount;
                 }
             }
         }
@@ -990,6 +990,77 @@ class Player
         return new Command() {RecruitmentUnits = bestRecUnits, Moves = moves};
     }
 
+
+
+    static int GetBestRecruitmentUnitsCount(Point[,] map, Building oppBase, int gold, Point pointFrom, out List<Unit> resUnits)
+    {
+        var killedPoints = 0;
+        if (pointFrom != null && pointFrom.Owner == oppBase.Owner &&
+            (pointFrom is Unit || pointFrom is Building building && building.BuildingType == 2))
+            killedPoints++;
+
+        if (gold < RecruitmentCost1)
+        {
+            resUnits = new List<Unit>();
+            killedPoints += GetKillCount(map, oppBase);
+            return killedPoints;
+        }
+
+        int owner = oppBase.Owner == 1 ? 0 : 1;
+
+        var recruitmentPoints = pointFrom == null
+            ? GetRecruitmentPoints(map, owner)
+            : GetRecruitmentPoints(map, pointFrom, owner);
+        if (!recruitmentPoints.Any())
+        {
+            resUnits = new List<Unit>();
+            killedPoints += GetKillCount(map, oppBase);
+            return killedPoints;
+        }
+
+        var maxKilledPoints = 0;
+        int minOppBaseDist = int.MaxValue;
+        var bestResUnits = new List<Unit>();
+
+        var hasRecPoint = false;
+        foreach (var rp in recruitmentPoints)
+        {
+            int level = GetMinRecruitmentUnitLevel(rp, map, 1);
+            var cost = GetUnitCost(level);
+            if (cost > gold) continue;
+
+            hasRecPoint = true;
+            var changePoint = rp;
+            var unit = new Unit(rp.X, rp.Y, owner, -1, level);
+            map[rp.Y, rp.X] = unit;
+
+
+            var killedPointsCur = GetBestRecruitmentUnitsCount(map, oppBase, gold - cost, rp, out var resUnitsCur);
+
+            map[rp.Y, rp.X] = changePoint;
+
+            if (killedPointsCur > maxKilledPoints || killedPointsCur == maxKilledPoints && GetManhDist(rp, oppBase) < minOppBaseDist)
+            {
+                maxKilledPoints = killedPointsCur;
+                minOppBaseDist = GetManhDist(rp, oppBase);
+                resUnitsCur.Insert(0, unit);
+                bestResUnits = resUnitsCur;
+            }
+        }
+
+        if (!hasRecPoint)
+        {
+            resUnits = new List<Unit>();
+            killedPoints += GetKillCount(map, oppBase);
+            return killedPoints;
+        }
+
+        resUnits = bestResUnits;
+        killedPoints += maxKilledPoints;
+        return killedPoints;
+    }
+
+
     static IList<Point> GetBestRecruitmentUnits(Point[,] map, Building oppBase, int gold, Point pointFrom, out List<Unit> resUnits)
     {
         var killedPoints = new List<Point>();
@@ -1078,6 +1149,77 @@ class Player
         }
 
         return 1;
+    }
+
+
+    static int GetKillCount(Point[,] map, Building oppBase)
+    {
+        var killedCount = 0;
+        for (var i = 0; i < Size; ++i)
+        {
+            for (var j = 0; j < Size; ++j)
+            {
+                if (map[i, j] is Unit mapUnit && mapUnit.Owner == oppBase.Owner)
+                    killedCount++;
+            }
+        }
+
+        //BFS
+
+
+        var queue = new Stack<Point>();
+        queue.Push(oppBase);
+        var discoveredPoints = new bool[Size, Size];
+        discoveredPoints[oppBase.Y, oppBase.X] = true;
+
+        while (queue.Count > 0)
+        {
+            var p = queue.Pop();
+            if (p is Unit pUnit && pUnit.Owner == oppBase.Owner)
+                killedCount--;
+
+            if (p.Y > 0)
+            {
+                var nP = map[p.Y - 1, p.X];
+                if (nP != null && nP.Owner == oppBase.Owner && !discoveredPoints[nP.Y, nP.X])
+                {
+                    discoveredPoints[nP.Y, nP.X] = true;
+                    queue.Push(nP);
+                }
+            }
+            if (p.Y < Size - 1)
+            {
+                var nP = map[p.Y + 1, p.X];
+                if (nP != null && nP.Owner == oppBase.Owner && !discoveredPoints[nP.Y, nP.X])
+                {
+                    discoveredPoints[nP.Y, nP.X] = true;
+                    queue.Push(nP);
+                }
+            }
+
+            if (p.X > 0)
+            {
+                var nP = map[p.Y, p.X - 1];
+                if (nP != null && nP.Owner == oppBase.Owner && !discoveredPoints[nP.Y, nP.X])
+                {
+                    discoveredPoints[nP.Y, nP.X] = true;
+                    queue.Push(nP);
+                }
+            }
+
+            if (p.X < Size - 1)
+            {
+                var nP = map[p.Y, p.X + 1];
+                if (nP != null && nP.Owner == oppBase.Owner && !discoveredPoints[nP.Y, nP.X])
+                {
+                    discoveredPoints[nP.Y, nP.X] = true;
+                    queue.Push(nP);
+                }
+            }
+        }
+
+
+        return killedCount;
     }
 
 
