@@ -375,6 +375,7 @@ namespace MapPoints
     public class Command
     {
         public IList<Unit> RecruitmentUnits { get; set; }
+        public IList<Building> BuilingTowers { get; set; }
         public IList<Tuple<Unit, Point>> Moves { get; set; }
     }
 
@@ -569,6 +570,7 @@ class Player
                 income,
                 table,
                 allPoints,
+                mineSpots,
                 opponentGold,
                 opponentIncome);
             var textCommand = "";
@@ -582,6 +584,12 @@ class Player
             {
                 textCommand += $"TRAIN {recUnit.Level} {recUnit.X} {recUnit.Y};";
                 gold -= GetUnitCost(recUnit.Level);
+            }
+
+            foreach (var tower in command.BuilingTowers)
+            {
+                textCommand += $"BUILD TOWER {tower.X} {tower.Y};";
+                gold -= TowerCost;
             }
 
 
@@ -729,6 +737,7 @@ class Player
 
     static Command GetCommand(
         IList<Unit> myUnits, IList<Unit> oppUnits, Point[,] map, Building myBase, Building oppBase, int gold, int income, AStarPoint[,] table, IList<AStarPoint> allPoints,
+        IList<Point> mineSpots,
         int oppGold, int oppIncome)
     {
         var moves = new List<Tuple<Unit, Point>>();
@@ -902,8 +911,45 @@ class Player
             }
         }
 
-        Tuple<Unit, Point> bestMove = null;
         List<Unit> bestRecUnits = allMoveRecUnits;
+        List<Building> bestBuildTowers = new List<Building>();
+
+        //вариант с башнями
+        if (gold > TowerCost)
+        {
+            for (var i = 0; i < Size; ++i)
+            {
+                for (var j = 0; j < Size; ++j)
+                {
+                    var point = map[i, j];
+                    if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
+                        continue;
+
+                    var tower = new Building(j, i, 0, 2, true);
+                    map[i, j] = tower;
+
+                    var towerOppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map),
+                        map,
+                        myBase,
+                        oppBase,
+                        oppGold + oppIncome + allMoveOppAddGold);
+                    if (moveKilledCount - towerOppKilledCount > maxDeltaKillCount)//TODO
+                    {
+                        maxSumKill = moveKilledCount;
+                        maxDeltaKillCount = moveKilledCount - towerOppKilledCount;
+                        bestRecUnits = new List<Unit>();
+                        bestBuildTowers = new List<Building>() {tower};
+                        Console.Error.WriteLine($"TOWER: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
+                    }
+
+                    map[i, j] = point;
+                }
+            }
+        }
+
+
+        Tuple<Unit, Point> bestMove = null;
+       
         int bestOppGold = -1;
       
         foreach (var move in moves)
@@ -991,6 +1037,7 @@ class Player
                     bestMove = new Tuple<Unit, Point>(unit, n);
                     bestRecUnits = recUnits;
                     bestOppGold = resOppGold;
+                    bestBuildTowers = new List<Building>();
                 }
             }
 
@@ -1103,7 +1150,7 @@ class Player
         //    }
         //}
 
-        return new Command() {RecruitmentUnits = bestRecUnits, Moves = moves};
+        return new Command() {RecruitmentUnits = bestRecUnits, Moves = moves, BuilingTowers = bestBuildTowers};
     }
 
 
@@ -1141,7 +1188,7 @@ class Player
         var hasRecPoint = false;
         foreach (var rp in recruitmentPoints)
         {
-            int level = GetMinRecruitmentUnitLevel(rp, map, 1);
+            int level = GetMinRecruitmentUnitLevel(rp, map, 0);
             var cost = GetUnitCost(level);
             if (cost > gold) continue;
 
