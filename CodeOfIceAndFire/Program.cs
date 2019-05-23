@@ -347,12 +347,14 @@ namespace MapPoints
     {
         public List<Unit> KilledUnits { get; set; }
         public List<Building> KilledBuildings { get; set; }
+        public List<Building> DeactivatedBuildings { get; set; }
         public List<Point> LostPoint { get; set; }
 
         public LossContainer()
         {
             KilledUnits = new List<Unit>();
             KilledBuildings = new List<Building>();
+            DeactivatedBuildings = new List<Building>();
             LostPoint = new List<Point>();
         }
 
@@ -360,6 +362,7 @@ namespace MapPoints
         {
             KilledUnits.AddRange(lc.KilledUnits);
             KilledBuildings.AddRange(lc.KilledBuildings);
+            DeactivatedBuildings.AddRange(lc.DeactivatedBuildings);
             LostPoint.AddRange(lc.LostPoint);
         }
     }
@@ -870,10 +873,12 @@ class Player
             allMoveResOppGold--;//за контрольную точку
         }
 
+        foreach (var b in allMoveLc.DeactivatedBuildings)
+            allMoveResOppGold--;//за контрольную точку
+
         foreach (var point in allMoveLc.LostPoint)
             allMoveResOppGold--;
 
-        //TODO: резать доход врага за окруженные башни
 
         var oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
         UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedNeutralPoints);
@@ -882,6 +887,14 @@ class Player
         int maxDeltaKillCount = maxSumKill - oppKilledCount;
         Console.Error.WriteLine(
             $"ALL MOVE: {maxSumKill} - {oppKilledCount} = {maxDeltaKillCount}. Gold: {allMoveResOppGold}");
+
+        if (allMoveLc.DeactivatedBuildings.Any())
+        {
+            foreach (var db in allMoveLc.DeactivatedBuildings)
+            {
+                Console.Error.WriteLine($"DB: {db.X} {db.Y}");
+            }
+        }
 
         Tuple<Unit, Point> bestMove = null;
         List<Unit> bestRecUnits = allMoveRecUnits;
@@ -949,6 +962,9 @@ class Player
                     resOppGold += GetUnitUpkeep(kUnit.Level);
                     resOppGold--;//за контрольную точку
                 }
+
+                foreach (var b in lc.DeactivatedBuildings)
+                    resOppGold--;//за контрольную точку
 
                 foreach (var point in lc.LostPoint)
                     resOppGold--;
@@ -1388,7 +1404,9 @@ class Player
                 {
                     if (map[i,j] is Unit unit)
                         lc.KilledUnits.Add(unit);
-                    else if (!(map[i,j] is Building))
+                    else if (map[i,j] is Building building)
+                        lc.DeactivatedBuildings.Add(building);
+                    else 
                         lc.LostPoint.Add(map[i,j]);
                 }
             }
@@ -1567,6 +1585,9 @@ class Player
                 map[point.Y, point.X] = new Point(point.X, point.Y, point.Owner, false);
         }
 
+        foreach (var b in lc.DeactivatedBuildings)
+            map[b.Y, b.X].IsActive = false;
+
         return capturedNeutralPoints;
     }
 
@@ -1586,6 +1607,9 @@ class Player
         {
             map[lp.Y,lp.X] = lp;
         }
+
+        foreach (var b in lc.DeactivatedBuildings)
+            map[b.Y, b.X].IsActive = true;
 
         foreach (var ap in activatedPoint)
             ap.IsActive = false;
