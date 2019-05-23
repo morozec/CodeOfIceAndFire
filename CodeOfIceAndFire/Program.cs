@@ -72,9 +72,14 @@ namespace AStar
             var aStarGoal = goal as AStarPoint;
             if (unit.Level < 3 && Player.IsTowerInfluenceCell(aStarGoal.X, aStarGoal.Y, map, unit.Owner == 0 ? 1 : 0))
                 return BIG_WEIGHT;
-            if (map[aStarGoal.Y, aStarGoal.X] is Unit mUnit && mUnit.Owner != unit.Owner &&
-                (unit.Level != 3 && unit.Level <= mUnit.Level))
-                return BIG_WEIGHT;
+            if (map[aStarGoal.Y, aStarGoal.X] is Unit mUnit)
+            {
+                if (mUnit.Owner == unit.Owner)
+                    return BIG_WEIGHT;
+
+                if (unit.Level != 3 && unit.Level <= mUnit.Level)
+                    return BIG_WEIGHT;
+            }
 
 
             double cost = Weight + Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y) * aStarGoal.Weight;
@@ -1019,8 +1024,17 @@ class Player
             var bestMoveUnit = bestMove.Item1;
             var bestMovePoint = bestMove.Item2;
 
+
             moves.RemoveAll(m => m.Item1.Id == bestMoveUnit.Id);
-            moves.Add(bestMove);
+            int moveIndex = 0;//находм момент, когда ячейка хода освободится
+            for (var i = 0; i < moves.Count; ++i)
+            {
+                if (moves[i].Item1.X == bestMovePoint.X && moves[i].Item1.Y == bestMovePoint.Y)
+                {
+                    moveIndex = i + 1;
+                }
+            }
+            moves.Insert(moveIndex, bestMove);
 
             map[bestMoveUnit.Y,bestMoveUnit.X] = new Point(bestMoveUnit.X, bestMoveUnit.Y, 0, true);
             map[bestMovePoint.Y,bestMovePoint.X] = new Unit(bestMovePoint.X, bestMovePoint.Y, bestMoveUnit.Owner, bestMoveUnit.Id, bestMoveUnit.Level);
