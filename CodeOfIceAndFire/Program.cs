@@ -392,6 +392,7 @@ namespace MapPoints
 
 class Player
 {
+    private const int MaxLevel = 5;
     const int BIG_WEIGHT = 10000;
 
     const int RecruitmentCost1 = 10;
@@ -644,7 +645,7 @@ class Player
 
     static int GetOppMaxKillCount(IList<Unit> oppUnits, Point[,] map, Building myBase, Building oppBase, int oppGold)
     {
-        int maxKillCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, null, out _);
+        int maxKillCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, null, 0, out _);
 
         foreach (var unit in oppUnits)
         {
@@ -661,7 +662,7 @@ class Player
                 map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
                 map[n.Y,n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
 
-                var killedPointsCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, n, out _);
+                var killedPointsCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, n, 0, out _);
                 
                 map[unit.Y,unit.X] = savedUnit;
                 map[n.Y,n.X] = savedPoint;
@@ -992,14 +993,14 @@ class Player
 
 
 
-    static int GetBestRecruitmentUnitsCount(Point[,] map, Building oppBase, int gold, Point pointFrom, out List<Unit> resUnits)
+    static int GetBestRecruitmentUnitsCount(Point[,] map, Building oppBase, int gold, Point pointFrom, int deepLevel, out List<Unit> resUnits)
     {
         var killedPoints = 0;
         if (pointFrom != null && pointFrom.Owner == oppBase.Owner &&
             (pointFrom is Unit || pointFrom is Building building && building.BuildingType == 2))
             killedPoints++;
 
-        if (gold < RecruitmentCost1)
+        if (gold < RecruitmentCost1 || deepLevel >= 5)
         {
             resUnits = new List<Unit>();
             killedPoints += GetKillCount(map, oppBase);
@@ -1035,7 +1036,7 @@ class Player
             map[rp.Y, rp.X] = unit;
 
 
-            var killedPointsCur = GetBestRecruitmentUnitsCount(map, oppBase, gold - cost, rp, out var resUnitsCur);
+            var killedPointsCur = GetBestRecruitmentUnitsCount(map, oppBase, gold - cost, rp, deepLevel + 1, out var resUnitsCur);
 
             map[rp.Y, rp.X] = changePoint;
 
