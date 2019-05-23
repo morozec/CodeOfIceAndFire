@@ -825,23 +825,67 @@ class Player
 
         }
 
+
+        var moveKilledCount = 0;
+        var allMoveOppAddGold = 0;
+
+        foreach (var move in moves)
+        {
+            if (move.Item2 is Building)
+            {
+                moveKilledCount++;
+                if (move.Item2.IsActive)
+                    allMoveOppAddGold--;//за контрольную точку
+            }
+            else if (move.Item2 is Unit mUnit)
+            {
+                moveKilledCount++;
+                allMoveOppAddGold += GetUnitUpkeep(mUnit.Level);
+                allMoveOppAddGold--;//за контрольную точку
+            }
+            else if (move.Item2.Owner == 1 && move.Item2.IsActive)//opp point
+            {
+                allMoveOppAddGold--;//за контрольную точку
+            }
+        }
+
+        var allMoveResOppGold = oppGold + oppIncome + allMoveOppAddGold;
+
         var activatedPoints = UpdateAfterMoveMap(map, myBase);//активируем мои точки в результате движения юнитов
         var allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, null, out var allMoveRecUnits);
+
+        foreach (var ru in allMoveRecUnits)//снимаем 1 за захваченные тренировкой точки врага
+        {
+            var mapP = map[ru.Y, ru.X];
+            if (mapP.Owner == 1 && !(mapP is Unit) && (!(mapP is Building b) || b.BuildingType != 2) && mapP.IsActive)
+                allMoveResOppGold--;
+        }
+
         var allMoveCapturedNeutralPoints = UpdateMap(map, allMoveRecUnits, allMoveLc);
-       
-       
-        var oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, oppGold + oppIncome);
+
+        
+        foreach (var unit in allMoveLc.KilledUnits)
+        {
+            allMoveResOppGold += GetUnitUpkeep(unit.Level);
+            allMoveResOppGold--;//за контрольную точку
+        }
+
+        foreach (var point in allMoveLc.LostPoint)
+            allMoveResOppGold--;
+
+        //TODO: резать доход врага за окруженные башни
+
+        var oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
         UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedNeutralPoints);
         
-
-        var moveKilledCount =  moves.Count(m => m.Item2 is Unit || m.Item2 is Building);
         var maxSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
         int maxDeltaKillCount = maxSumKill - oppKilledCount;
         Console.Error.WriteLine(
-            $"ALL MOVE: {maxSumKill} - {oppKilledCount} = {maxDeltaKillCount}");
+            $"ALL MOVE: {maxSumKill} - {oppKilledCount} = {maxDeltaKillCount}. Gold: {allMoveResOppGold}");
 
         Tuple<Unit, Point> bestMove = null;
         List<Unit> bestRecUnits = allMoveRecUnits;
+        int bestOppGold = -1;
       
         foreach (var move in moves)
         {
@@ -855,6 +899,21 @@ class Player
             table[step.Y, step.X].IsMySolder = false;
             table[unit.Y, unit.X].IsMySolder = true;
             if (step is Unit || step is Building) moveKilledCount--;
+
+            if (step is Building)
+            {
+                if (step.IsActive)
+                    allMoveOppAddGold++;
+            }
+            else if (step is Unit stepUnit)
+            {
+                allMoveOppAddGold -= GetUnitUpkeep(stepUnit.Level);
+                allMoveOppAddGold++;
+            }
+            else if (step.Owner == 1 && step.IsActive)
+            {
+                allMoveOppAddGold++;
+            }
 
 
             var neighbours = GetMapNeighbours(map, unit, false);
@@ -871,11 +930,30 @@ class Player
                 map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
                 map[n.Y,n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
 
+                var resOppGold = oppGold + oppIncome + allMoveOppAddGold;
+
                 //активировать точки тут смысла нет, т.к. тренировка всегда будет рядом с мувом
                 var lc = GetBestRecruitmentUnits(map, oppBase, gold, n, out var recUnits);
+
+                foreach (var ru in recUnits)//снимаем 1 за захваченные тренировкой точки врага
+                {
+                    var mapP = map[ru.Y, ru.X];
+                    if (mapP.Owner == 1 && !(mapP is Unit) && (!(mapP is Building b) || b.BuildingType != 2) && mapP.IsActive)
+                        resOppGold--;
+                }
+
                 var capturedNeutralPoints = UpdateMap(map, recUnits, lc);
-               
-                var oppKillCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, oppGold + oppIncome);
+
+                foreach (var kUnit in lc.KilledUnits)
+                {
+                    resOppGold += GetUnitUpkeep(kUnit.Level);
+                    resOppGold--;//за контрольную точку
+                }
+
+                foreach (var point in lc.LostPoint)
+                    resOppGold--;
+
+                var oppKillCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, resOppGold);
 
                 map[unit.Y, unit.X] = savedUnit;
                 map[n.Y, n.X] = savedPoint;
@@ -889,6 +967,7 @@ class Player
                     maxSumKill = sumKill;
                     bestMove = new Tuple<Unit, Point>(unit, n);
                     bestRecUnits = recUnits;
+                    bestOppGold = resOppGold;
                 }
             }
 
@@ -900,11 +979,26 @@ class Player
             table[unit.Y, unit.X].IsMySolder = false;
             table[step.Y, step.X].IsMySolder = true;
             if (step is Unit || step is Building) moveKilledCount++;
+
+            if (step is Building)
+            {
+                if (step.IsActive)
+                    allMoveOppAddGold--;
+            }
+            else if (step is Unit stepUnit0)
+            {
+                allMoveOppAddGold += GetUnitUpkeep(stepUnit0.Level);
+                allMoveOppAddGold--;
+            }
+            else if (step.Owner == 1 && step.IsActive)
+            {
+                allMoveOppAddGold--;
+            }
         }
 
         if (bestMove != null)
         {
-            Console.Error.WriteLine($"BEST: {maxDeltaKillCount}");
+            Console.Error.WriteLine($"BEST: {maxDeltaKillCount}. Gold: {bestOppGold}");
 
             var bestMoveUnit = bestMove.Item1;
             var bestMovePoint = bestMove.Item2;
