@@ -696,7 +696,7 @@ class Player
                 map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
                 map[n.Y,n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
 
-                var killedPointsCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, n, 0, out _);
+                var killedPointsCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, n, 0, out var oppRecUnits);
                 
                 map[unit.Y,unit.X] = savedUnit;
                 map[n.Y,n.X] = savedPoint;
@@ -870,7 +870,7 @@ class Player
                 allMoveResOppGold--;
         }
 
-        var allMoveCapturedNeutralPoints = UpdateMap(map, allMoveRecUnits, allMoveLc);
+        var allMoveCapturedPoints = UpdateMap(map, allMoveRecUnits, allMoveLc);
 
         
         foreach (var unit in allMoveLc.KilledUnits)
@@ -887,7 +887,7 @@ class Player
 
 
         var oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
-        UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedNeutralPoints);
+        UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedPoints);
         
         var maxSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
         int maxDeltaKillCount = maxSumKill - oppKilledCount;
@@ -962,7 +962,7 @@ class Player
                         resOppGold--;
                 }
 
-                var capturedNeutralPoints = UpdateMap(map, recUnits, lc);
+                var capturedPoints = UpdateMap(map, recUnits, lc);
 
                 foreach (var kUnit in lc.KilledUnits)
                 {
@@ -980,7 +980,7 @@ class Player
 
                 map[unit.Y, unit.X] = savedUnit;
                 map[n.Y, n.X] = savedPoint;
-                UpdateMapBack(map, lc, new List<Point>(), capturedNeutralPoints);
+                UpdateMapBack(map, lc, new List<Point>(), capturedPoints);
 
                 var sumKill = moveKilledCount + lc.KilledUnits.Count + lc.KilledBuildings.Count;
 
@@ -1584,11 +1584,11 @@ class Player
 
     static IList<Point> UpdateMap(Point[,] map, IList<Unit> recUnits, LossContainer lc)
     {
-        var capturedNeutralPoints = new List<Point>();
+        var capturedPoints = new List<Point>();
         foreach (var ru in recUnits)
         {
-            if (map[ru.Y, ru.X].Owner == -1) //точки врага будут в lc
-                capturedNeutralPoints.Add(map[ru.Y, ru.X]);
+            if (!(map[ru.Y, ru.X] is Unit) && !(map[ru.Y, ru.X] is Building))
+                capturedPoints.Add(map[ru.Y, ru.X]);
             map[ru.Y, ru.X] = ru;
         }
 
@@ -1607,10 +1607,10 @@ class Player
         foreach (var b in lc.DeactivatedBuildings)
             map[b.Y, b.X].IsActive = false;
 
-        return capturedNeutralPoints;
+        return capturedPoints;
     }
 
-    static void UpdateMapBack(Point[,] map, LossContainer lc, IList<Point> activatedPoint, IList<Point> capturedNeutralPoints)
+    static void UpdateMapBack(Point[,] map, LossContainer lc, IList<Point> activatedPoint, IList<Point> capturedPoints)
     {
         foreach (var unit in lc.KilledUnits)
         {
@@ -1633,7 +1633,7 @@ class Player
         foreach (var ap in activatedPoint)
             ap.IsActive = false;
 
-        foreach (var cp in capturedNeutralPoints)
+        foreach (var cp in capturedPoints)
             map[cp.Y, cp.X] = cp;
 
     }
