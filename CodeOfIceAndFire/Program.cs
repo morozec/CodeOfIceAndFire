@@ -1572,7 +1572,7 @@ class Player
         {
             if (pointFrom is Unit pUnit)
                 lc.KilledUnits.Add(pUnit);
-            else if (pointFrom is Building pBuilding && pBuilding.BuildingType == 2)
+            else if (pointFrom is Building pBuilding )
                 lc.KilledBuildings.Add(pBuilding);
         }
 
