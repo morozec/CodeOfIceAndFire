@@ -431,7 +431,15 @@ namespace MapPoints
 
 class Player
 {
-    private const int MaxLevel = 5;
+    enum Action
+    {
+        StayNoTower,
+        StayBuildTower,
+        MoveNoTower,
+        MoveBuildTower
+    }
+
+    private const int MaxDeepLevel = 5;
     const int BIG_WEIGHT = 10000;
 
     const int RecruitmentCost1 = 10;
@@ -756,6 +764,167 @@ class Player
     {
         var oppBorderMap = GetOppBorderMap(map);
 
+        //стоим всеми
+        var action = Action.StayNoTower;
+        var moveKilledCount = 0;
+        var allMoveResOppGold = oppGold + oppIncome;
+
+        IList<Point> activatedPoints = new List<Point>();//активируем мои точки в результате движения юнитов
+        var allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, income, null, out var allMoveRecUnits);
+
+        foreach (var ru in allMoveRecUnits)//снимаем 1 за захваченные тренировкой точки врага
+        {
+            var mapP = map[ru.Y, ru.X];
+            if (mapP.Owner == 1 && !(mapP is Unit) && (!(mapP is Building b) || b.BuildingType != 2) && mapP.IsActive)
+                allMoveResOppGold--;
+        }
+
+        var allMoveCapturedPoints = UpdateMap(map, allMoveRecUnits, allMoveLc);
+
+
+        foreach (var unit in allMoveLc.KilledUnits)
+        {
+            allMoveResOppGold += GetUnitUpkeep(unit.Level);
+            allMoveResOppGold--;//за контрольную точку
+        }
+
+        foreach (var b in allMoveLc.DeactivatedBuildings)
+            allMoveResOppGold--;//за контрольную точку
+
+        foreach (var point in allMoveLc.LostPoint)
+            allMoveResOppGold--;
+
+
+        var oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
+        var noTowersOppKilledCount = oppKilledCount;
+        UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedPoints);
+
+        var maxSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
+        int maxDeltaKillCount = maxSumKill - oppKilledCount;
+        Console.Error.WriteLine(
+            $"ALL STAY: {maxSumKill} - {oppKilledCount} = {maxDeltaKillCount}. Gold: {allMoveResOppGold}");
+
+        if (allMoveLc.DeactivatedBuildings.Any())
+        {
+            foreach (var db in allMoveLc.DeactivatedBuildings)
+            {
+                Console.Error.WriteLine($"DB: {db.X} {db.Y}");
+            }
+        }
+
+        List<Unit> bestRecUnits = allMoveRecUnits;
+        List<Building> bestBuildTowers = new List<Building>();
+        int maxProtectPointsCount = 0;
+
+        //вариант с башнями
+        if (gold >= TowerCost)
+        {
+            for (var i = Size - 1; i >= 0; --i)
+            {
+                for (var j = Size - 1; j >= 0; --j)
+                {
+                    var point = map[i, j];
+                    if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
+                        continue;
+
+                    if (oppBorderMap[i, j] > 2) continue;
+
+                    //if (!IsCloseBorderPoint(point, map)) continue;
+
+                    var neighbours = GetMapNeighbours(map, point, false);
+                    var protectPointsCount = 0;
+                    foreach (var n in neighbours)
+                    {
+                        if (n == null || n.Owner != 0) continue;
+                        if (IsTowerInfluenceCell(n.X, n.Y, map, 0)) continue;
+                        protectPointsCount++;
+                    }
+
+                    if (protectPointsCount <= 1) continue;
+
+                    if (!IsTowerInfluenceCell(point.X, point.Y, map, 0))
+                        protectPointsCount++;
+
+                    var tower = new Building(j, i, 0, 2, true);
+                    map[i, j] = tower;
+
+                    var towerOppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map),
+                        map,
+                        myBase,
+                        oppBase,
+                        oppGold + oppIncome);
+                    if (towerOppKilledCount >= noTowersOppKilledCount)
+                    {
+                        map[i, j] = point;
+                        continue; //не строим башню, если она никого не спасет
+                    }
+
+                    if (moveKilledCount - towerOppKilledCount > maxDeltaKillCount ||
+                        moveKilledCount - towerOppKilledCount == maxDeltaKillCount && protectPointsCount > maxProtectPointsCount)
+                    {
+                        action = Action.StayBuildTower;
+                        maxSumKill = moveKilledCount;
+                        maxDeltaKillCount = moveKilledCount - towerOppKilledCount;
+                        maxProtectPointsCount = protectPointsCount;
+                        bestRecUnits = new List<Unit>();
+                        bestBuildTowers = new List<Building>() { tower };
+                        Console.Error.WriteLine($"STAY TOWER: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
+                    }
+
+                    map[i, j] = point;
+                }
+            }
+        }
+
+        //если построили башню - нанимаем солдат на остаток
+        if (bestBuildTowers.Any() && gold - TowerCost >= RecruitmentCost1)
+        {
+            var savedPoints = new List<Point>();
+            foreach (var bbt in bestBuildTowers)
+            {
+                savedPoints.Add(map[bbt.Y, bbt.X]);
+                map[bbt.Y, bbt.X] = bbt;
+            }
+
+            activatedPoints = UpdateAfterMoveMap(map, myBase);//активируем мои точки в результате движения юнитов
+            allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold - TowerCost, income, null, out allMoveRecUnits);
+
+            allMoveResOppGold = oppGold + oppIncome;
+            foreach (var ru in allMoveRecUnits)//снимаем 1 за захваченные тренировкой точки врага
+            {
+                var mapP = map[ru.Y, ru.X];
+                if (mapP.Owner == 1 && !(mapP is Unit) && (!(mapP is Building b) || b.BuildingType != 2) && mapP.IsActive)
+                    allMoveResOppGold--;
+            }
+
+            allMoveCapturedPoints = UpdateMap(map, allMoveRecUnits, allMoveLc);
+
+            foreach (var unit in allMoveLc.KilledUnits)
+            {
+                allMoveResOppGold += GetUnitUpkeep(unit.Level);
+                allMoveResOppGold--;//за контрольную точку
+            }
+
+            foreach (var b in allMoveLc.DeactivatedBuildings)
+                allMoveResOppGold--;//за контрольную точку
+
+            foreach (var point in allMoveLc.LostPoint)
+                allMoveResOppGold--;
+
+
+            oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
+            UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedPoints);
+
+            maxSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
+            maxDeltaKillCount = maxSumKill - oppKilledCount;
+            bestRecUnits.AddRange(allMoveRecUnits);
+
+            foreach (var sp in savedPoints)
+                map[sp.Y, sp.X] = sp;
+        }
+
+
+
         var moves = new List<Tuple<Unit, Point>>();
 
         //ходим всеми
@@ -859,8 +1028,8 @@ class Player
 
         }
 
-
-        var moveKilledCount = 0;
+        
+        moveKilledCount = 0;
         var allMoveOppAddGold = 0;
 
         foreach (var move in moves)
@@ -883,10 +1052,10 @@ class Player
             }
         }
 
-        var allMoveResOppGold = oppGold + oppIncome + allMoveOppAddGold;
+        allMoveResOppGold = oppGold + oppIncome + allMoveOppAddGold;
 
-        var activatedPoints = UpdateAfterMoveMap(map, myBase);//активируем мои точки в результате движения юнитов
-        var allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, income, null, out var allMoveRecUnits);
+        activatedPoints = UpdateAfterMoveMap(map, myBase);//активируем мои точки в результате движения юнитов
+        allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, income, null, out allMoveRecUnits);
 
         foreach (var ru in allMoveRecUnits)//снимаем 1 за захваченные тренировкой точки врага
         {
@@ -895,7 +1064,7 @@ class Player
                 allMoveResOppGold--;
         }
 
-        var allMoveCapturedPoints = UpdateMap(map, allMoveRecUnits, allMoveLc);
+        allMoveCapturedPoints = UpdateMap(map, allMoveRecUnits, allMoveLc);
 
         
         foreach (var unit in allMoveLc.KilledUnits)
@@ -911,26 +1080,26 @@ class Player
             allMoveResOppGold--;
 
 
-        var oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
-        var noTowersOppKilledCount = oppKilledCount;
+        oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
+        noTowersOppKilledCount = oppKilledCount;
         UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedPoints);
-        
-        var maxSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
-        int maxDeltaKillCount = maxSumKill - oppKilledCount;
-        Console.Error.WriteLine(
-            $"ALL MOVE: {maxSumKill} - {oppKilledCount} = {maxDeltaKillCount}. Gold: {allMoveResOppGold}");
 
-        if (allMoveLc.DeactivatedBuildings.Any())
+        var allMoveSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
+        var allMoveDeltaKillCount = maxSumKill - oppKilledCount;
+
+        if (allMoveDeltaKillCount >= maxDeltaKillCount)
         {
-            foreach (var db in allMoveLc.DeactivatedBuildings)
-            {
-                Console.Error.WriteLine($"DB: {db.X} {db.Y}");
-            }
-        }
+            action = Action.MoveNoTower;
+            maxDeltaKillCount = allMoveDeltaKillCount;
+            maxSumKill = allMoveSumKill;
 
-        List<Unit> bestRecUnits = allMoveRecUnits;
-        List<Building> bestBuildTowers = new List<Building>();
-        int maxProtectPointsCount = 0;
+            Console.Error.WriteLine(
+                $"ALL MOVE: {maxSumKill} - {oppKilledCount} = {maxDeltaKillCount}. Gold: {allMoveResOppGold}");
+
+            bestRecUnits = allMoveRecUnits;
+            bestBuildTowers = new List<Building>();
+            maxProtectPointsCount = 0;
+        }
 
         //вариант с башнями
         if (gold >= TowerCost)
@@ -975,15 +1144,17 @@ class Player
                         continue; //не строим башню, если она никого не спасет
                     }
 
-                    if (moveKilledCount - towerOppKilledCount > maxDeltaKillCount ||
+                    if ((action == Action.StayBuildTower || action == Action.StayNoTower) && moveKilledCount - towerOppKilledCount >= maxDeltaKillCount ||
+                        moveKilledCount - towerOppKilledCount > maxDeltaKillCount ||
                         moveKilledCount - towerOppKilledCount == maxDeltaKillCount && protectPointsCount > maxProtectPointsCount)
                     {
+                        action = Action.MoveBuildTower;
                         maxSumKill = moveKilledCount;
                         maxDeltaKillCount = moveKilledCount - towerOppKilledCount;
                         maxProtectPointsCount = protectPointsCount;
                         bestRecUnits = new List<Unit>();
                         bestBuildTowers = new List<Building>() {tower};
-                        Console.Error.WriteLine($"TOWER: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
+                        Console.Error.WriteLine($"ALL MOVE TOWER: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
                     }
 
                     map[i, j] = point;
@@ -992,7 +1163,7 @@ class Player
         }
 
         //если построили башню - нанимаем солдат на остаток
-        if (bestBuildTowers.Any() && gold >= RecruitmentCost1)
+        if (action == Action.MoveBuildTower)
         {
             foreach (var bbt in bestBuildTowers)
             {
@@ -1000,43 +1171,45 @@ class Player
             }
 
             gold -= TowerCost;
-            activatedPoints = UpdateAfterMoveMap(map, myBase);//активируем мои точки в результате движения юнитов
-            allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, income, null, out allMoveRecUnits);
-
-            foreach (var ru in allMoveRecUnits)//снимаем 1 за захваченные тренировкой точки врага
+            if (gold > RecruitmentCost1)
             {
-                var mapP = map[ru.Y, ru.X];
-                if (mapP.Owner == 1 && !(mapP is Unit) && (!(mapP is Building b) || b.BuildingType != 2) && mapP.IsActive)
+                activatedPoints = UpdateAfterMoveMap(map, myBase); //активируем мои точки в результате движения юнитов
+                allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, income, null, out allMoveRecUnits);
+
+                foreach (var ru in allMoveRecUnits) //снимаем 1 за захваченные тренировкой точки врага
+                {
+                    var mapP = map[ru.Y, ru.X];
+                    if (mapP.Owner == 1 && !(mapP is Unit) && (!(mapP is Building b) || b.BuildingType != 2) &&
+                        mapP.IsActive)
+                        allMoveResOppGold--;
+                }
+
+                allMoveCapturedPoints = UpdateMap(map, allMoveRecUnits, allMoveLc);
+
+                foreach (var unit in allMoveLc.KilledUnits)
+                {
+                    allMoveResOppGold += GetUnitUpkeep(unit.Level);
+                    allMoveResOppGold--; //за контрольную точку
+                }
+
+                foreach (var b in allMoveLc.DeactivatedBuildings)
+                    allMoveResOppGold--; //за контрольную точку
+
+                foreach (var point in allMoveLc.LostPoint)
                     allMoveResOppGold--;
+
+
+                oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
+                UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedPoints);
+
+                maxSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
+                maxDeltaKillCount = maxSumKill - oppKilledCount;
+                bestRecUnits.AddRange(allMoveRecUnits);
             }
-
-            allMoveCapturedPoints = UpdateMap(map, allMoveRecUnits, allMoveLc);
-            
-            foreach (var unit in allMoveLc.KilledUnits)
-            {
-                allMoveResOppGold += GetUnitUpkeep(unit.Level);
-                allMoveResOppGold--;//за контрольную точку
-            }
-
-            foreach (var b in allMoveLc.DeactivatedBuildings)
-                allMoveResOppGold--;//за контрольную точку
-
-            foreach (var point in allMoveLc.LostPoint)
-                allMoveResOppGold--;
-
-
-            oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
-            UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedPoints);
-
-            maxSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
-            maxDeltaKillCount = maxSumKill - oppKilledCount;
-            bestRecUnits.AddRange(allMoveRecUnits);
         }
 
 
-
         Tuple<Unit, Point> bestMove = null;
-       
         int bestOppGold = -1;
       
         foreach (var move in moves)
@@ -1117,66 +1290,6 @@ class Player
                 var resOppGold = oppGold + oppIncome + allMoveOppAddGold;
 
 
-                //вариант с башнями
-                //if (gold > TowerCost)
-                //{
-                //    for (var i = Size - 1; i >= 0; --i)
-                //    {
-                //        for (var j = Size - 1; j >= 0; --j)
-                //        {
-                //            var point = map[i, j];
-                //            if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
-                //                continue;
-
-                //            //if (!IsCloseBorderPoint(point, map)) continue;
-                //            if (oppBorderMap[i, j] > 2) continue;
-
-                //            var pointNeighbours = GetMapNeighbours(map, point, false);
-                //            var protectPointsCount = 0;
-                //            foreach (var pn in pointNeighbours)
-                //            {
-                //                if (pn == null || pn.Owner != 0) continue;
-                //                if (IsTowerInfluenceCell(pn.X, pn.Y, map, 0)) continue;
-                //                protectPointsCount++;
-                //            }
-
-                //            if (protectPointsCount <= 1) continue;
-
-                //            if (!IsTowerInfluenceCell(point.X, point.Y, map, 0))
-                //                protectPointsCount++;
-
-                //            var tower = new Building(j, i, 0, 2, true);
-                //            map[i, j] = tower;
-
-                //            var towerOppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map),
-                //                map,
-                //                myBase,
-                //                oppBase,
-                //                oppGold + oppIncome + allMoveOppAddGold);
-                //            if (towerOppKilledCount >= noTowersOppKilledCount)
-                //            {
-                //                map[i, j] = point;
-                //                continue; //не строим башню, если она никого не спасет
-                //            }
-
-                //            if (moveKilledCount - towerOppKilledCount > maxDeltaKillCount ||
-                //                moveKilledCount - towerOppKilledCount == maxDeltaKillCount && protectPointsCount > maxProtectPointsCount)
-                //            {
-                //                maxSumKill = moveKilledCount;
-                //                maxDeltaKillCount = moveKilledCount - towerOppKilledCount;
-                //                maxProtectPointsCount = protectPointsCount;
-                //                bestMove = new Tuple<Unit, Point>(unit, n);
-                //                bestRecUnits = new List<Unit>();
-                //                bestBuildTowers = new List<Building>() { tower };
-                //                Console.Error.WriteLine($"TOWER_MOVE: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
-                //            }
-
-                //            map[i, j] = point;
-                //        }
-                //    }
-                //}
-
-
                 //активировать точки тут смысла нет, т.к. тренировка всегда будет рядом с мувом
                 var lc = GetBestRecruitmentUnits(map, oppBase, gold, income, n, out var recUnits);
 
@@ -1219,13 +1332,18 @@ class Player
 
                 var sumKill = moveKilledCount + lc.KilledUnits.Count + lc.KilledBuildings.Count;
 
-                if (sumKill - oppKillCount > maxDeltaKillCount || sumKill - oppKillCount == maxDeltaKillCount && sumKill > maxSumKill)
+                if ((action == Action.StayBuildTower || action == Action.StayNoTower) && sumKill - oppKillCount >= maxDeltaKillCount ||
+                    sumKill - oppKillCount > maxDeltaKillCount || sumKill - oppKillCount == maxDeltaKillCount && sumKill > maxSumKill)
                 {
                     maxDeltaKillCount = sumKill - oppKillCount;
                     maxSumKill = sumKill;
                     bestMove = new Tuple<Unit, Point>(unit, n);
                     bestRecUnits = recUnits;
                     bestOppGold = resOppGold;
+                    if (action == Action.StayBuildTower)
+                        bestBuildTowers = new List<Building>();
+                    if (action == Action.StayBuildTower || action == Action.StayNoTower)
+                        action = Action.MoveNoTower;
                 }
             }
 
@@ -1261,7 +1379,6 @@ class Player
             var bestMoveUnit = bestMove.Item1;
             var bestMovePoint = bestMove.Item2;
 
-
             moves.RemoveAll(m => m.Item1.Id == bestMoveUnit.Id);
             int moveIndex = 0;//находм момент, когда ячейка хода освободится
             for (var i = 0; i < moves.Count; ++i)
@@ -1276,19 +1393,29 @@ class Player
             map[bestMoveUnit.Y,bestMoveUnit.X] = new Point(bestMoveUnit.X, bestMoveUnit.Y, 0, true);
             map[bestMovePoint.Y,bestMovePoint.X] = new Unit(bestMovePoint.X, bestMovePoint.Y, bestMoveUnit.Owner, bestMoveUnit.Id, bestMoveUnit.Level);
             
-            foreach (var ru in bestRecUnits)
-            {
-                map[ru.Y,ru.X] = ru;
-            }
+        }
+        else if (action == Action.StayNoTower)
+        {
+            moves = new List<Tuple<Unit, Point>>();
+        }
+        else if (action == Action.StayBuildTower)
+        {
+            moves = new List<Tuple<Unit, Point>>();
+            foreach (var bt in bestBuildTowers)
+                map[bt.Y, bt.X] = bt;
+        }
+
+        foreach (var ru in bestRecUnits)
+        {
+            map[ru.Y, ru.X] = ru;
         }
 
 
 
-        
 
-        
 
-       
+
+
 
         //Unit recMoveUnit = null;
         //if (bestMove != null)
@@ -1323,7 +1450,7 @@ class Player
         //}
 
 
-       
+
 
         //if (isSameOppKill || bestMove == null)
         //{
@@ -1375,7 +1502,7 @@ class Player
             (pointFrom is Unit || pointFrom is Building building && building.BuildingType == 2))
             killedPoints++;
 
-        if (gold < RecruitmentCost1 || deepLevel >= 5)
+        if (gold < RecruitmentCost1 || deepLevel > MaxDeepLevel)
         {
             resUnits = new List<Unit>();
             if (gotOppPoints)
