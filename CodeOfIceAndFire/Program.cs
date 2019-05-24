@@ -439,6 +439,7 @@ class Player
         MoveBuildTower
     }
 
+    private const int OppBorderTowersDist = 3;
     private const int MaxDeepLevel = 5;
     const int BIG_WEIGHT = 10000;
 
@@ -835,7 +836,7 @@ class Player
                     if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
                         continue;
 
-                    if (oppBorderMap[i, j] > 3) continue;
+                    if (oppBorderMap[i, j] > OppBorderTowersDist) continue;
 
                     //if (!IsCloseBorderPoint(point, map)) continue;
 
@@ -1120,7 +1121,7 @@ class Player
                     if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
                         continue;
 
-                    if (oppBorderMap[i,j] > 2) continue;
+                    if (oppBorderMap[i,j] > OppBorderTowersDist) continue;
 
                     //if (!IsCloseBorderPoint(point, map)) continue;
 
