@@ -73,6 +73,10 @@ namespace AStar
             if (unit.Level < 3 && Player.IsTowerInfluenceCell(aStarGoal.X, aStarGoal.Y, map, unit.Owner == 0 ? 1 : 0))
                 return BIG_WEIGHT;
 
+            if (map[aStarGoal.Y, aStarGoal.X] != null && map[aStarGoal.Y, aStarGoal.X].Owner == unit.Owner &&
+                map[aStarGoal.Y, aStarGoal.X] is Building)
+                return BIG_WEIGHT;
+
             if (map[aStarGoal.Y, aStarGoal.X] is Unit mUnit)
             {
                 if (mUnit.Owner == unit.Owner)
