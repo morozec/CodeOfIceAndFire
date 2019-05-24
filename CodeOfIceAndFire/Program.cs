@@ -649,7 +649,7 @@ class Player
     }
 
 
-    static IList<Point> GetRecruitmentPoints(Point[,] map, int owner)
+    static IEnumerable<Point> GetRecruitmentPoints(Point[,] map, int owner)
     {
         var recruitmentPoints = new List<Point>();
         for (var i = 0; i <Size; ++i)
@@ -674,9 +674,18 @@ class Player
         return recruitmentPoints;
     }
 
-    static IList<Point> GetRecruitmentPoints(Point[,] map, Point point, int owner)
+    static IEnumerable<Point> GetRecruitmentPoints(Point[,] map, Point point, int owner)
     {
-        var neighbours = GetMapNeighbours(map, point, false).Where(n => n != null && n.Owner != owner).ToList();
+        var neighbours = new List<Point>();
+        if (point.Y > 0 && map[point.Y - 1, point.X] != null && map[point.Y - 1, point.X].Owner != owner)
+            neighbours.Add(map[point.Y - 1, point.X]);
+        if (point.Y < Size - 1 && map[point.Y + 1, point.X] != null && map[point.Y + 1, point.X].Owner != owner)
+            neighbours.Add(map[point.Y + 1, point.X]);
+        if (point.X > 0 && map[point.Y, point.X - 1] != null && map[point.Y, point.X - 1].Owner != owner)
+            neighbours.Add(map[point.Y, point.X - 1]);
+        if (point.X < Size - 1 && map[point.Y, point.X + 1] != null && map[point.Y, point.X + 1].Owner != owner)
+            neighbours.Add(map[point.Y, point.X + 1]);
+       
         return neighbours;
     }
 
@@ -1337,13 +1346,6 @@ class Player
         var recruitmentPoints = pointFrom == null
             ? GetRecruitmentPoints(map, owner)
             : GetRecruitmentPoints(map, pointFrom, owner);
-        if (!recruitmentPoints.Any())
-        {
-            resUnits = new List<Unit>();
-            if (gotOppPoints)
-                killedPoints += GetKillCount(map, oppBase);
-            return killedPoints;
-        }
 
         var maxKilledPoints = 0;
         int minOppBaseDist = int.MaxValue;
@@ -1417,12 +1419,6 @@ class Player
         var recruitmentPoints = pointFrom == null
             ? GetRecruitmentPoints(map, owner)
             : GetRecruitmentPoints(map, pointFrom, owner);
-        if (!recruitmentPoints.Any())
-        {
-            resUnits = new List<Unit>();
-            lc.Add(GetLossContainer(map, oppBase));
-            return lc;
-        }
 
         LossContainer bestLc = null;
         int minOppBaseDist = int.MaxValue;
@@ -1972,10 +1968,19 @@ class Player
         if (IsTowerCell(x, y, map, owner))
             return true;
 
-        var neighbours = GetMapNeighbours(map, map[y,x], false);
-        foreach (var n in neighbours.Where(n => n != null))
-            if (IsTowerCell(n.X, n.Y, map, owner))
+        if (y > 0)
+            if (map[y - 1, x] != null && IsTowerCell(x, y-1, map, owner))
                 return true;
+        if (y < Size - 1)
+            if (map[y + 1, x] != null && IsTowerCell(x, y+1, map, owner))
+                return true;
+        if (x > 0)
+            if (map[y, x - 1] != null && IsTowerCell(x-1, y, map, owner))
+                return true;
+        if (x < Size - 1)
+            if (map[y, x + 1] != null && IsTowerCell(x + 1, y, map, owner))
+                return true;
+       
         return false;
     }
 
