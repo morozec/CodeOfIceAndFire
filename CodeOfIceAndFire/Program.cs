@@ -460,11 +460,11 @@ class Player
 
         var mineSpots = new List<Point>();
 
-        input = Console.ReadLine(); Console.Error.WriteLine(input);
+        input = Console.ReadLine(); 
         int numberMineSpots = int.Parse(input);
         for (int i = 0; i < numberMineSpots; i++)
         {
-            input = Console.ReadLine();Console.Error.WriteLine(input);
+            input = Console.ReadLine();
             inputs = input.Split(' ');
             int x = int.Parse(inputs[0]);
             int y = int.Parse(inputs[1]);
@@ -474,11 +474,19 @@ class Player
         // game loop
         while (true)
         {
+            
+
             var myUnits = new List<Unit>();
             var oppUnits = new List<Unit>();
 
 
-            int gold = int.Parse(Console.ReadLine()); Console.Error.WriteLine(gold);
+            int gold = int.Parse(Console.ReadLine());
+
+            Console.Error.WriteLine(numberMineSpots);
+            foreach (var ms in mineSpots)
+                Console.Error.WriteLine($"{ms.X} {ms.Y}");
+
+            Console.Error.WriteLine(gold);
             int income = int.Parse(Console.ReadLine()); Console.Error.WriteLine(income);
             int opponentGold = int.Parse(Console.ReadLine()); Console.Error.WriteLine(opponentGold);
             int opponentIncome = int.Parse(Console.ReadLine()); Console.Error.WriteLine(opponentIncome);
@@ -827,7 +835,7 @@ class Player
                     if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
                         continue;
 
-                    if (oppBorderMap[i, j] > 2) continue;
+                    if (oppBorderMap[i, j] > 3) continue;
 
                     //if (!IsCloseBorderPoint(point, map)) continue;
 
@@ -1533,14 +1541,32 @@ class Player
         else
         {
             recruitmentPoints = GetRecruitmentPoints(map, pointFrom, owner);
-            activatedPoints = UpdateAfterMoveMap(map, myBase);
-            foreach (var ap in activatedPoints)
+
+            var needUpdate = pointFrom.Y > 0 && map[pointFrom.Y - 1, pointFrom.X] != null &&
+                             !map[pointFrom.Y - 1, pointFrom.X].IsActive &&
+                             map[pointFrom.Y - 1, pointFrom.X].Owner == myBase.Owner ||
+                             pointFrom.Y < Size - 1 && map[pointFrom.Y + 1, pointFrom.X] != null &&
+                             !map[pointFrom.Y + 1, pointFrom.X].IsActive &&
+                             map[pointFrom.Y + 1, pointFrom.X].Owner == myBase.Owner ||
+                             pointFrom.X > 0 && map[pointFrom.Y, pointFrom.X - 1] != null &&
+                             !map[pointFrom.Y, pointFrom.X - 1].IsActive &&
+                             map[pointFrom.Y, pointFrom.X - 1].Owner == myBase.Owner ||
+                             pointFrom.X < Size - 1 && map[pointFrom.Y, pointFrom.X + 1] != null &&
+                             !map[pointFrom.Y, pointFrom.X + 1].IsActive &&
+                             map[pointFrom.Y, pointFrom.X + 1].Owner == myBase.Owner;
+                
+
+            if (needUpdate)
             {
-                var rps = GetRecruitmentPoints(map, ap, owner);
-                foreach (var rp in rps)
+                activatedPoints = UpdateAfterMoveMap(map, myBase);
+                foreach (var ap in activatedPoints)
                 {
-                    if (!recruitmentPoints.Contains(rp))
-                        recruitmentPoints.Add(rp);
+                    var rps = GetRecruitmentPoints(map, ap, owner);
+                    foreach (var rp in rps)
+                    {
+                        if (!recruitmentPoints.Contains(rp))
+                            recruitmentPoints.Add(rp);
+                    }
                 }
             }
         }
@@ -2058,14 +2084,15 @@ class Player
     static IList<Point> UpdateAfterMoveMap(Point[,] map, Building myBase)
     {
         //BFS
-        var queue = new Queue<Point>();
-        queue.Enqueue(myBase);
-        var discoveredPoints = new HashSet<Point>(){myBase};
+        var queue = new Stack<Point>();
+        queue.Push(myBase);
+        var discoveredPoints = new bool[Size, Size];
+        discoveredPoints[myBase.Y, myBase.X] = true;
 
         var activatedPoints = new List<Point>();
         while (queue.Count > 0)
         {
-            var p = queue.Dequeue();
+            var p = queue.Pop();
             if (p.Owner == myBase.Owner && !p.IsActive)
             {
                 p.IsActive = true;
@@ -2076,39 +2103,39 @@ class Player
             if (p.Y > 0)
             {
                 var nP = map[p.Y - 1,p.X];
-                if (nP != null && nP.Owner == myBase.Owner && !discoveredPoints.Contains(nP))
+                if (nP != null && nP.Owner == myBase.Owner && !discoveredPoints[nP.Y,nP.X])
                 {
-                    discoveredPoints.Add(nP);
-                    queue.Enqueue(nP);
+                    discoveredPoints[nP.Y, nP.X] = true;
+                    queue.Push(nP);
                 }
             }
             if (p.Y < Size - 1)
             {
                 var nP = map[p.Y + 1,p.X];
-                if (nP != null && nP.Owner == myBase.Owner && !discoveredPoints.Contains(nP))
+                if (nP != null && nP.Owner == myBase.Owner && !discoveredPoints[nP.Y, nP.X])
                 {
-                    discoveredPoints.Add(nP);
-                    queue.Enqueue(nP);
+                    discoveredPoints[nP.Y, nP.X] = true;
+                    queue.Push(nP);
                 }
             }
 
             if (p.X > 0)
             {
                 var nP = map[p.Y,p.X - 1];
-                if (nP != null && nP.Owner == myBase.Owner && !discoveredPoints.Contains(nP))
+                if (nP != null && nP.Owner == myBase.Owner && !discoveredPoints[nP.Y, nP.X])
                 {
-                    discoveredPoints.Add(nP);
-                    queue.Enqueue(nP);
+                    discoveredPoints[nP.Y, nP.X] = true;
+                    queue.Push(nP);
                 }
             }
 
             if (p.X < Size - 1)
             {
                 var nP = map[p.Y,p.X + 1];
-                if (nP != null && nP.Owner == myBase.Owner && !discoveredPoints.Contains(nP))
+                if (nP != null && nP.Owner == myBase.Owner && !discoveredPoints[nP.Y, nP.X])
                 {
-                    discoveredPoints.Add(nP);
-                    queue.Enqueue(nP);
+                    discoveredPoints[nP.Y, nP.X] = true;
+                    queue.Push(nP);
                 }
             }
         }
