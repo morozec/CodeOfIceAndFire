@@ -1009,21 +1009,108 @@ class Player
 
 
             var neighbours = GetMapNeighbours(map, unit, false);
+            neighbours.Add(unit);
             foreach (var n in neighbours)
             {
-                if (n == null) continue;
-                if (n.Owner == 0) continue;
-                if (n.X == step.X && n.Y == step.Y) continue;//этот ход уже рассмотрели
-                if (!CanMove(unit, n, map)) continue;
-
                 var savedUnit = unit;
                 var savedPoint = n;
 
-                if (!moves.Any(m => m.Item2.X == unit.X && m.Item2.Y == unit.Y))
-                    map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
-                map[n.Y,n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
+                var connectedUnits = new List<Unit>();
+
+                if (!Equals(n, unit))
+                {
+                    if (n == null) continue;
+                    if (n.Owner == 0) continue;
+                    if (n.X == step.X && n.Y == step.Y) continue; //этот ход уже рассмотрели
+                    if (!CanMove(unit, n, map)) continue;
+
+                    if (!moves.Any(m => m.Item2.X == unit.X && m.Item2.Y == unit.Y))
+                        map[unit.Y, unit.X] = new Point(unit.X, unit.Y, 0, true);
+                    map[n.Y, n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
+                }
+                else
+                {
+                    //отменяем все ходы, которые завязаны на точку юнита
+                    var hasConnectedMovies = true;
+                    var considerPoint = unit;
+                    while (hasConnectedMovies)
+                    {
+                        hasConnectedMovies = false;
+                        foreach (var m in moves)
+                        {
+                            if (m.Item2.X == considerPoint.X && m.Item2.Y == considerPoint.Y)
+                            {
+                                hasConnectedMovies = true;
+                                considerPoint = m.Item1;
+
+                                var connectedUnit = m.Item1;
+                                connectedUnits.Add(connectedUnit);
+
+                                //отмена хода
+                                map[connectedUnit.Y, connectedUnit.X] = connectedUnit;
+                                table[connectedUnit.Y, connectedUnit.X].IsMySolder = true;
+                            }
+                        }
+                    }
+                }
 
                 var resOppGold = oppGold + oppIncome + allMoveOppAddGold;
+
+
+                //вариант с башнями
+                if (gold > TowerCost)
+                {
+                    for (var i = Size - 1; i >= 0; --i)
+                    {
+                        for (var j = Size - 1; j >= 0; --j)
+                        {
+                            var point = map[i, j];
+                            if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
+                                continue;
+
+                            var pointNeighbours = GetMapNeighbours(map, point, false);
+                            var protectPointsCount = 0;
+                            foreach (var pn in pointNeighbours)
+                            {
+                                if (pn == null || pn.Owner != 0) continue;
+                                if (IsTowerInfluenceCell(pn.X, pn.Y, map, 0)) continue;
+                                protectPointsCount++;
+                            }
+
+                            if (!IsTowerInfluenceCell(point.X, point.Y, map, 0))
+                                protectPointsCount++;
+
+                            var tower = new Building(j, i, 0, 2, true);
+                            map[i, j] = tower;
+
+                            var towerOppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map),
+                                map,
+                                myBase,
+                                oppBase,
+                                oppGold + oppIncome + allMoveOppAddGold);
+                            if (towerOppKilledCount >= noTowersOppKilledCount)
+                            {
+                                map[i, j] = point;
+                                continue; //не строим башню, если она никого не спасет
+                            }
+
+                            if (moveKilledCount - towerOppKilledCount > maxDeltaKillCount ||
+                                moveKilledCount - towerOppKilledCount == maxDeltaKillCount && protectPointsCount > maxProtectPointsCount)
+                            {
+                                maxSumKill = moveKilledCount;
+                                maxDeltaKillCount = moveKilledCount - towerOppKilledCount;
+                                maxProtectPointsCount = protectPointsCount;
+                                bestMove = new Tuple<Unit, Point>(unit, n);
+                                bestRecUnits = new List<Unit>();
+                                bestBuildTowers = new List<Building>() { tower };
+                                Console.Error.WriteLine($"TOWER_MOVE: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
+                            }
+
+                            map[i, j] = point;
+                        }
+                    }
+                }
+
 
                 //активировать точки тут смысла нет, т.к. тренировка всегда будет рядом с мувом
                 var lc = GetBestRecruitmentUnits(map, oppBase, gold, income, n, out var recUnits);
@@ -1051,8 +1138,18 @@ class Player
 
                 var oppKillCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, resOppGold);
 
+                
                 map[unit.Y, unit.X] = savedUnit;
                 map[n.Y, n.X] = savedPoint;
+
+                foreach (var connectedUnit in connectedUnits)
+                {
+                    //возврат
+                    map[unit.Y, unit.X] = connectedUnit;
+                    table[connectedUnit.Y, connectedUnit.X].IsMySolder = false;
+                }
+                
+
                 UpdateMapBack(map, lc, new List<Point>(), capturedPoints);
 
                 var sumKill = moveKilledCount + lc.KilledUnits.Count + lc.KilledBuildings.Count;
@@ -1531,7 +1628,7 @@ class Player
         if (point == null)
             return false;
         //opp tower
-        if (IsTowerInfluenceCell(point.X, point.Y, map, 1) && unit.Level < 3)
+        if (IsTowerInfluenceCell(point.X, point.Y, map, unit.Owner == 0 ? 1 : 0) && unit.Level < 3)
             return false;
         
         if (point is Building pointBuilding)
