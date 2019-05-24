@@ -523,7 +523,7 @@ class Player
         MoveBuildTower
     }
 
-    private const int TIME = 45;
+    private const int TIME = 50;
     private const int OppBorderTowersDist = 3;
     private const int MaxDeepLevel = 5;
     const int BIG_WEIGHT = 10000;
@@ -1011,6 +1011,7 @@ class Player
         var elapsedMs = watch.ElapsedMilliseconds;
         if (elapsedMs > TIME)
         {
+            Console.Error.WriteLine("time is over");
             if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
             return new Command()
             {
@@ -1098,6 +1099,7 @@ class Player
         elapsedMs = watch.ElapsedMilliseconds;
         if (elapsedMs > TIME)
         {
+            Console.Error.WriteLine("time is over");
             if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
             return new Command()
             {
@@ -1170,6 +1172,7 @@ class Player
         elapsedMs = watch.ElapsedMilliseconds;
         if (elapsedMs > TIME)
         {
+            Console.Error.WriteLine("time is over");
             if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
             return new Command()
             {
@@ -1374,6 +1377,7 @@ class Player
         elapsedMs = watch.ElapsedMilliseconds;
         if (elapsedMs > TIME)
         {
+            Console.Error.WriteLine("time is over");
             if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
             return new Command()
             {
@@ -1464,6 +1468,7 @@ class Player
         elapsedMs = watch.ElapsedMilliseconds;
         if (elapsedMs > TIME)
         {
+            Console.Error.WriteLine("time is over");
             if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
             return new Command()
             {
@@ -1536,6 +1541,7 @@ class Player
         elapsedMs = watch.ElapsedMilliseconds;
         if (elapsedMs > TIME)
         {
+            Console.Error.WriteLine("time is over");
             if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
             return new Command()
             {
