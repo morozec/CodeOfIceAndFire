@@ -523,6 +523,7 @@ class Player
         MoveBuildTower
     }
 
+    private const int TIME = 45;
     private const int OppBorderTowersDist = 3;
     private const int MaxDeepLevel = 5;
     const int BIG_WEIGHT = 10000;
@@ -1003,15 +1004,42 @@ class Player
 
         List<Unit> bestRecUnits = allMoveRecUnits;
         List<Building> bestBuildTowers = new List<Building>();
+        var bestMovies = new List<Tuple<Unit, Point>>();
         int maxProtectPointsCount = 0;
 
+        watch.Stop();
+        var elapsedMs = watch.ElapsedMilliseconds;
+        if (elapsedMs > TIME)
+        {
+            if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
+            return new Command()
+            {
+                BuilingTowers = bestBuildTowers, Moves = bestMovies,
+                RecruitmentUnits = allMoveRecUnits
+            };
+        }
+        watch.Start();
+
         //вариант с башнями
+        var isWatchStopped = false;
         if (gold >= TowerCost)
         {
             for (var i = Size - 1; i >= 0; --i)
             {
+                if (isWatchStopped)
+                    break;
                 for (var j = Size - 1; j >= 0; --j)
                 {
+                    watch.Stop();
+                    elapsedMs = watch.ElapsedMilliseconds;
+                    if (elapsedMs > TIME)
+                    {
+                        isWatchStopped = true;
+                        break;
+                    }
+                    else
+                        watch.Start();
+
                     var point = map[i, j];
                     if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
                         continue;
@@ -1064,6 +1092,21 @@ class Player
                 }
             }
         }
+        
+
+        watch.Stop();
+        elapsedMs = watch.ElapsedMilliseconds;
+        if (elapsedMs > TIME)
+        {
+            if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
+            return new Command()
+            {
+                BuilingTowers = bestBuildTowers,
+                Moves = bestMovies,
+                RecruitmentUnits = allMoveRecUnits
+            };
+        }
+        watch.Start();
 
         //если построили башню - нанимаем солдат на остаток
         if (bestBuildTowers.Any() && gold - TowerCost >= RecruitmentCost1)
@@ -1084,7 +1127,7 @@ class Player
                 return new Command()
                 {
                     BuilingTowers = bestBuildTowers,
-                    Moves = new List<Tuple<Unit, Point>>(),
+                    Moves = bestMovies,
                     RecruitmentUnits = allMoveRecUnits
                 };
             }
@@ -1123,11 +1166,24 @@ class Player
                 map[sp.Y, sp.X] = sp;
         }
 
-
+        watch.Stop();
+        elapsedMs = watch.ElapsedMilliseconds;
+        if (elapsedMs > TIME)
+        {
+            if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
+            return new Command()
+            {
+                BuilingTowers = bestBuildTowers,
+                Moves = bestMovies,
+                RecruitmentUnits = allMoveRecUnits
+            };
+        }
+        watch.Start();
 
         var moves = new List<Tuple<Unit, Point>>();
 
         //ходим всеми
+       
         var endPoint = table[oppBase.Y, oppBase.X];
         myUnits = myUnits.OrderBy(u => GetManhDist(u, oppBase)).ToList();
         var noWayUnits = new List<Unit>();
@@ -1310,16 +1366,45 @@ class Player
 
             bestRecUnits = allMoveRecUnits;
             bestBuildTowers = new List<Building>();
+            bestMovies = moves;
             maxProtectPointsCount = 0;
         }
 
+        watch.Stop();
+        elapsedMs = watch.ElapsedMilliseconds;
+        if (elapsedMs > TIME)
+        {
+            if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
+            return new Command()
+            {
+                BuilingTowers = bestBuildTowers,
+                Moves = bestMovies,
+                RecruitmentUnits = allMoveRecUnits
+            };
+        }
+        Console.Error.WriteLine($"TIME { elapsedMs}");
+        watch.Start();
+
         //вариант с башнями
+        isWatchStopped = false;
         if (gold >= TowerCost)
         {
             for (var i = Size - 1; i >= 0; --i)
             {
+                if (isWatchStopped)
+                    break;
                 for (var j = Size - 1; j >= 0; --j)
                 {
+                    watch.Stop();
+                    elapsedMs = watch.ElapsedMilliseconds;
+                    if (elapsedMs > TIME)
+                    {
+                        isWatchStopped = true;
+                        break;
+                    }
+                    else
+                        watch.Start();
+
                     var point = map[i, j];
                     if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
                         continue;
@@ -1366,6 +1451,7 @@ class Player
                         maxProtectPointsCount = protectPointsCount;
                         bestRecUnits = new List<Unit>();
                         bestBuildTowers = new List<Building>() {tower};
+                        bestMovies = moves;
                         Console.Error.WriteLine($"ALL MOVE TOWER: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
                     }
 
@@ -1373,6 +1459,21 @@ class Player
                 }
             }
         }
+
+        watch.Stop();
+        elapsedMs = watch.ElapsedMilliseconds;
+        if (elapsedMs > TIME)
+        {
+            if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
+            return new Command()
+            {
+                BuilingTowers = bestBuildTowers,
+                Moves = bestMovies,
+                RecruitmentUnits = allMoveRecUnits
+            };
+        }
+        Console.Error.WriteLine($"TIME { elapsedMs}");
+        watch.Start();
 
         //если построили башню - нанимаем солдат на остаток
         if (action == Action.MoveBuildTower)
@@ -1431,6 +1532,20 @@ class Player
             }
         }
 
+        watch.Stop();
+        elapsedMs = watch.ElapsedMilliseconds;
+        if (elapsedMs > TIME)
+        {
+            if (saveBuilding != null) bestBuildTowers.Add(saveBuilding);
+            return new Command()
+            {
+                BuilingTowers = bestBuildTowers,
+                Moves = bestMovies,
+                RecruitmentUnits = allMoveRecUnits
+            };
+        }
+        watch.Start();
+
 
         Tuple<Unit, Point> bestMove = null;
         int bestOppGold = -1;
@@ -1439,8 +1554,8 @@ class Player
         foreach (var move in moves)
         {
             watch.Stop();
-            var elapsedMs = watch.ElapsedMilliseconds;
-            if(elapsedMs > 50) 
+            elapsedMs = watch.ElapsedMilliseconds;
+            if(elapsedMs > TIME) 
                 break;
             Console.Error.WriteLine($"time is {elapsedMs}");
             watch.Start();
@@ -1641,6 +1756,7 @@ class Player
                 }
             }
             moves.Insert(moveIndex, bestMove);
+            bestMovies = moves;
 
             map[bestMoveUnit.Y,bestMoveUnit.X] = new Point(bestMoveUnit.X, bestMoveUnit.Y, 0, true);
             map[bestMovePoint.Y,bestMovePoint.X] = new Unit(bestMovePoint.X, bestMovePoint.Y, bestMoveUnit.Owner, bestMoveUnit.Id, bestMoveUnit.Level);
@@ -1648,11 +1764,11 @@ class Player
         }
         else if (action == Action.StayNoTower)
         {
-            moves = new List<Tuple<Unit, Point>>();
+            //moves = new List<Tuple<Unit, Point>>();
         }
         else if (action == Action.StayBuildTower)
         {
-            moves = new List<Tuple<Unit, Point>>();
+            //moves = new List<Tuple<Unit, Point>>();
             foreach (var bt in bestBuildTowers)
                 map[bt.Y, bt.X] = bt;
         }
@@ -1662,64 +1778,12 @@ class Player
             map[ru.Y, ru.X] = ru;
         }
 
-
-
-
-
-
-
-
-        //Unit recMoveUnit = null;
-        //if (bestMove != null)
-        //{
-        //    if (!isSameOppKill)
-        //    {
-        //        moves.Add(bestMove);
-        //        recMoveUnit = bestMove.Item1;
-
-        //        recMoveUnit.X = bestMove.Item2.X;
-        //        recMoveUnit.Y = bestMove.Item2.Y;
-
-        //        map[recMoveUnit.Y][recMoveUnit.X] = new Point(recMoveUnit.Y, recMoveUnit.X, 0, true);
-        //        map[bestMove.Item2.Y][bestMove.Item2.X] = new Unit(recMoveUnit.X,
-        //            recMoveUnit.Y,
-        //            recMoveUnit.Owner,
-        //            recMoveUnit.Id,
-        //            recMoveUnit.Level);
-
-        //        table[bestMove.Item2.Y, bestMove.Item2.X].Owner = 0;
-        //        table[recMoveUnit.Y, recMoveUnit.X].IsMySolder = false;
-        //        table[bestMove.Item2.Y, bestMove.Item2.X].IsMySolder = true;
-
-        //        foreach (var recUnit in bestRecUnits)
-        //        {
-        //            map[recUnit.Y][recUnit.X] = recUnit;
-
-        //            table[recUnit.Y, recUnit.X].Owner = 0;
-        //            table[recUnit.Y, recUnit.X].IsMySolder = true;
-        //        }
-        //    }
-        //}
-
-
-
-
-        //if (isSameOppKill || bestMove == null)
-        //{
-        //    //запускаем найм еще раз на обновленной карте
-        //    GetBestRecruitmentUnits(map, oppBase, gold, null, out bestRecUnits);
-        //    foreach (var recUnit in bestRecUnits)
-        //    {
-        //        map[recUnit.Y][recUnit.X] = recUnit;
-
-        //        table[recUnit.Y, recUnit.X].Owner = 0;
-        //        table[recUnit.Y, recUnit.X].IsMySolder = true;
-        //    }
-        //}
+        
+        
 
         if (saveBuilding != null)
             bestBuildTowers.Insert(0, saveBuilding);
-        return new Command() {RecruitmentUnits = bestRecUnits, Moves = moves, BuilingTowers = bestBuildTowers};
+        return new Command() {RecruitmentUnits = bestRecUnits, Moves = bestMovies, BuilingTowers = bestBuildTowers};
     }
 
     static bool IsCloseBorderPoint(Point point, Point[,] map)
