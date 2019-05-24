@@ -72,6 +72,7 @@ namespace AStar
             var aStarGoal = goal as AStarPoint;
             if (unit.Level < 3 && Player.IsTowerInfluenceCell(aStarGoal.X, aStarGoal.Y, map, unit.Owner == 0 ? 1 : 0))
                 return BIG_WEIGHT;
+
             if (map[aStarGoal.Y, aStarGoal.X] is Unit mUnit)
             {
                 if (mUnit.Owner == unit.Owner)
@@ -896,6 +897,7 @@ class Player
 
 
         var oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
+        var noTowersOppKilledCount = oppKilledCount;
         UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedPoints);
         
         var maxSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
@@ -913,17 +915,30 @@ class Player
 
         List<Unit> bestRecUnits = allMoveRecUnits;
         List<Building> bestBuildTowers = new List<Building>();
+        int maxProtectPointsCount = 0;
 
         //вариант с башнями
         if (gold > TowerCost)
         {
-            for (var i = 0; i < Size; ++i)
+            for (var i = Size - 1; i >= 0; --i)
             {
-                for (var j = 0; j < Size; ++j)
+                for (var j = Size - 1; j >= 0; --j)
                 {
                     var point = map[i, j];
                     if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
                         continue;
+
+                    var neighbours = GetMapNeighbours(map, point, false);
+                    var protectPointsCount = 0;
+                    foreach (var n in neighbours)
+                    {
+                        if (n == null || n.Owner != 0) continue;
+                        if (IsTowerInfluenceCell(n.X, n.Y, map, 0)) continue;
+                        protectPointsCount++;
+                    }
+
+                    if (!IsTowerInfluenceCell(point.X, point.Y, map, 0))
+                        protectPointsCount++;
 
                     var tower = new Building(j, i, 0, 2, true);
                     map[i, j] = tower;
@@ -933,10 +948,18 @@ class Player
                         myBase,
                         oppBase,
                         oppGold + oppIncome + allMoveOppAddGold);
-                    if (moveKilledCount - towerOppKilledCount > maxDeltaKillCount)//TODO
+                    if (towerOppKilledCount >= noTowersOppKilledCount)
+                    {
+                        map[i, j] = point;
+                        continue; //не строим башню, если она никого не спасет
+                    }
+
+                    if (moveKilledCount - towerOppKilledCount > maxDeltaKillCount ||
+                        moveKilledCount - towerOppKilledCount == maxDeltaKillCount && protectPointsCount > maxProtectPointsCount)
                     {
                         maxSumKill = moveKilledCount;
                         maxDeltaKillCount = moveKilledCount - towerOppKilledCount;
+                        maxProtectPointsCount = protectPointsCount;
                         bestRecUnits = new List<Unit>();
                         bestBuildTowers = new List<Building>() {tower};
                         Console.Error.WriteLine($"TOWER: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
