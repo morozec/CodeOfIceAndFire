@@ -745,6 +745,8 @@ class Player
         IList<Point> mineSpots,
         int oppGold, int oppIncome)
     {
+        var oppBorderMap = GetOppBorderMap(map);
+
         var moves = new List<Tuple<Unit, Point>>();
 
         //ходим всеми
@@ -932,6 +934,8 @@ class Player
                     if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
                         continue;
 
+                    if (oppBorderMap[i,j] > 2) continue;
+
                     //if (!IsCloseBorderPoint(point, map)) continue;
 
                     var neighbours = GetMapNeighbours(map, point, false);
@@ -944,7 +948,7 @@ class Player
                     }
 
                     if (protectPointsCount <= 1) continue;
-
+                    
                     if (!IsTowerInfluenceCell(point.X, point.Y, map, 0))
                         protectPointsCount++;
 
@@ -1073,6 +1077,7 @@ class Player
                                 continue;
 
                             //if (!IsCloseBorderPoint(point, map)) continue;
+                            if (oppBorderMap[i, j] > 2) continue;
 
                             var pointNeighbours = GetMapNeighbours(map, point, false);
                             var protectPointsCount = 0;
@@ -1964,6 +1969,46 @@ class Player
             if (IsTowerCell(n.X, n.Y, map, owner))
                 return true;
         return false;
+    }
+
+    static int[,] GetOppBorderMap(Point[,] map)
+    {
+        var resMap = new int[Size, Size];
+        for (var i = 0; i < Size; ++i)
+        {
+            for (var j = 0; j < Size; ++j)
+            {
+                var p = map[i, j];
+                if (p == null || p.Owner == -1)
+                {
+                    resMap[i, j] = BIG_WEIGHT;
+                    continue;
+                }
+
+                if (p.Owner == 1)
+                {
+                    resMap[i, j] = 0;
+                    continue;
+                }
+
+                var minDist = int.MaxValue;
+                for (var ii = 0; ii < Size; ++ii)
+                {
+                    for (var jj = 0; jj < Size; ++jj)
+                    {
+                        var pp = map[ii, jj];
+                        if (pp == null || pp.Owner != 1 || !pp.IsActive) continue;
+                        var dist = GetManhDist(j, i, jj, ii);
+                        if (dist < minDist)
+                            minDist = dist;
+                    }
+                }
+
+                resMap[i, j] = minDist;
+            }
+        }
+
+        return resMap;
     }
    
 }
