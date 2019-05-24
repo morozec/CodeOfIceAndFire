@@ -932,6 +932,8 @@ class Player
                     if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
                         continue;
 
+                    //if (!IsCloseBorderPoint(point, map)) continue;
+
                     var neighbours = GetMapNeighbours(map, point, false);
                     var protectPointsCount = 0;
                     foreach (var n in neighbours)
@@ -940,6 +942,8 @@ class Player
                         if (IsTowerInfluenceCell(n.X, n.Y, map, 0)) continue;
                         protectPointsCount++;
                     }
+
+                    if (protectPointsCount <= 1) continue;
 
                     if (!IsTowerInfluenceCell(point.X, point.Y, map, 0))
                         protectPointsCount++;
@@ -1068,6 +1072,8 @@ class Player
                             if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
                                 continue;
 
+                            //if (!IsCloseBorderPoint(point, map)) continue;
+
                             var pointNeighbours = GetMapNeighbours(map, point, false);
                             var protectPointsCount = 0;
                             foreach (var pn in pointNeighbours)
@@ -1076,6 +1082,8 @@ class Player
                                 if (IsTowerInfluenceCell(pn.X, pn.Y, map, 0)) continue;
                                 protectPointsCount++;
                             }
+
+                            if (protectPointsCount <= 1) continue;
 
                             if (!IsTowerInfluenceCell(point.X, point.Y, map, 0))
                                 protectPointsCount++;
@@ -1277,7 +1285,32 @@ class Player
         return new Command() {RecruitmentUnits = bestRecUnits, Moves = moves, BuilingTowers = bestBuildTowers};
     }
 
+    static bool IsCloseBorderPoint(Point point, Point[,] map)
+    {
+        var neighbours0 = GetMapNeighbours(map, point, false);
+        if (neighbours0.Any(n => n != null && n.Owner == 1))
+            return true;
 
+        var allNeighbours1 = new List<Point>();
+        foreach (var n0 in neighbours0)
+        {
+            if (n0 == null) continue;
+            var neighbours1 = GetMapNeighbours(map, n0, false);
+            if (neighbours1.Any(n => n != null && n.Owner == 1))
+                return true;
+            allNeighbours1.AddRange(neighbours1);
+        }
+
+        foreach (var n1 in allNeighbours1)
+        {
+            if (n1 == null) continue;
+            var neighbours2 = GetMapNeighbours(map, n1, false);
+            if (neighbours2.Any(n => n != null && n.Owner == 1))
+                return true;
+        }
+
+        return false;
+    }
 
     static int GetBestRecruitmentUnitsCount(Point[,] map, Building oppBase, int gold, Point pointFrom, int deepLevel, out List<Unit> resUnits)
     {
