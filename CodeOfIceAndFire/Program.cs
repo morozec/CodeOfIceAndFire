@@ -476,7 +476,6 @@ class Player
         while (true)
         {
             
-
             var myUnits = new List<Unit>();
             var oppUnits = new List<Unit>();
 
@@ -771,6 +770,8 @@ class Player
         IList<Point> mineSpots,
         int oppGold, int oppIncome)
     {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+
         var oppBorderMap = GetOppBorderMap(map);
 
         //стоим всеми
@@ -1223,6 +1224,13 @@ class Player
       
         foreach (var move in moves)
         {
+            watch.Stop();
+            var elapsedMs = watch.ElapsedMilliseconds;
+            if(elapsedMs > 50) 
+                break;
+            Console.Error.WriteLine($"time is {elapsedMs}");
+            watch.Start();
+
             if (map[move.Item1.Y, move.Item1.X] is Building)//здесь уже строим башню
             {
                 continue;
