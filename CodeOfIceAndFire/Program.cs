@@ -2209,16 +2209,16 @@ class Player
             return true;
 
         if (y > 0)
-            if (map[y - 1, x] != null && IsTowerCell(x, y-1, map, owner))
+            if (map[y - 1, x] != null && map[y - 1, x].IsActive && IsTowerCell(x, y - 1, map, owner))
                 return true;
         if (y < Size - 1)
-            if (map[y + 1, x] != null && IsTowerCell(x, y+1, map, owner))
+            if (map[y + 1, x] != null && map[y + 1, x].IsActive && IsTowerCell(x, y+1, map, owner))
                 return true;
         if (x > 0)
-            if (map[y, x - 1] != null && IsTowerCell(x-1, y, map, owner))
+            if (map[y, x - 1] != null && map[y, x-1].IsActive && IsTowerCell(x-1, y, map, owner))
                 return true;
         if (x < Size - 1)
-            if (map[y, x + 1] != null && IsTowerCell(x + 1, y, map, owner))
+            if (map[y, x + 1] != null && map[y, x+1].IsActive && IsTowerCell(x + 1, y, map, owner))
                 return true;
        
         return false;
