@@ -1226,7 +1226,6 @@ class Player
                     bestMove = new Tuple<Unit, Point>(unit, n);
                     bestRecUnits = recUnits;
                     bestOppGold = resOppGold;
-                    bestBuildTowers = new List<Building>();
                 }
             }
 
