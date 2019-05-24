@@ -1379,6 +1379,13 @@ class Player
             var bestMoveUnit = bestMove.Item1;
             var bestMovePoint = bestMove.Item2;
 
+            if (bestMoveUnit.X == bestMovePoint.X && bestMoveUnit.Y == bestMovePoint.Y)
+            {
+                moves.RemoveAll(m =>
+                    m.Item2.X == bestMovePoint.X && m.Item2.Y == bestMovePoint.Y &&
+                    (m.Item1.X != bestMovePoint.X || m.Item1.Y != bestMovePoint.Y));
+            }
+
             moves.RemoveAll(m => m.Item1.Id == bestMoveUnit.Id);
             int moveIndex = 0;//находм момент, когда ячейка хода освободится
             for (var i = 0; i < moves.Count; ++i)
