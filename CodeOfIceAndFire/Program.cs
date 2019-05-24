@@ -37,7 +37,7 @@ namespace AStar
 
         public abstract double GetHeuristicCost(APoint goal);
 
-        public abstract double GetCost(APoint goal, Unit unit, Point[,] map);
+        public abstract double GetCost(APoint goal, Unit unit, Point[,] map, bool isCostPath);
 
         public int CompareTo(APoint other)
         {
@@ -67,9 +67,89 @@ namespace AStar
             return Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y);
         }
 
-        public override double GetCost(APoint goal, Unit unit, Point[,] map)
+        public override double GetCost(APoint goal, Unit unit, Point[,] map, bool isCostPath)
         {
             var aStarGoal = goal as AStarPoint;
+
+            if (isCostPath)
+            {
+                var goalP = map[aStarGoal.Y, aStarGoal.X];
+                if (goalP == null)
+                    return BIG_WEIGHT;
+                if (goalP.Owner == unit.Owner)
+                {
+                    if (goalP is Unit)
+                        return BIG_WEIGHT;
+                    if (goalP is Building)
+                        return BIG_WEIGHT;
+                    return 10;
+                }
+
+                if (goalP.Owner == -1)
+                    return 10;
+                //opponent
+                if (goalP is Building goalBuilding)
+                {
+                    if (goalBuilding.BuildingType == 0 || goalBuilding.BuildingType == 1)
+                        return 10;
+                    return 30;
+                }
+                else if (goalP is Unit goalUNit)
+                {
+                    switch (goalUNit.Level)
+                    {
+                        case 1:
+                            return 20;
+                        default:
+                            return 30;
+                    }
+                }
+                else//empty
+                {
+                    var isInfluenceCell = false;
+                    if (goalP.Y > 0 && map[goalP.Y - 1, goalP.X] != null &&
+                        map[goalP.Y - 1, goalP.X].Owner != unit.Owner &&
+                        map[goalP.Y - 1, goalP.X].IsActive && map[goalP.Y - 1, goalP.X] is Building mBuilding1 &&
+                        mBuilding1.BuildingType == 2 && (X != goalP.X || Y != goalP.Y - 1))
+                    {
+                        isInfluenceCell = true;
+                    }
+
+                    if (goalP.Y < 12 - 1 && 
+                        map[goalP.Y + 1, goalP.X] != null &&
+                        map[goalP.Y + 1, goalP.X].Owner != unit.Owner &&
+                        map[goalP.Y + 1, goalP.X].IsActive && 
+                        map[goalP.Y + 1, goalP.X] is Building mBuilding2 &&
+                        mBuilding2.BuildingType == 2 && (X != goalP.X || Y != goalP.Y + 1))
+                    {
+                        isInfluenceCell = true;
+                    }
+
+                    if (goalP.X > 0 && map[goalP.Y, goalP.X - 1] != null &&
+                        map[goalP.Y, goalP.X-1].Owner != unit.Owner &&
+                        map[goalP.Y, goalP.X-1].IsActive && 
+                        map[goalP.Y, goalP.X-1] is Building mBuilding3 &&
+                        mBuilding3.BuildingType == 2 && (X != goalP.X-1 || Y != goalP.Y))
+                    {
+                        isInfluenceCell = true;
+                    }
+
+                    if (goalP.X < 12 - 1 && map[goalP.Y, goalP.X + 1] != null &&
+                        map[goalP.Y, goalP.X + 1].Owner != unit.Owner &&
+                        map[goalP.Y, goalP.X + 1].IsActive &&
+                        map[goalP.Y, goalP.X + 1] is Building mBuilding4 &&
+                        mBuilding4.BuildingType == 2 && (X != goalP.X + 1 || Y != goalP.Y))
+                    {
+                        isInfluenceCell = true;
+                    }
+
+
+                    return isInfluenceCell ? 30 : 10;
+                }
+                        
+            }
+
+           
             if (unit.Level < 3 && Player.IsTowerInfluenceCell(aStarGoal.X, aStarGoal.Y, map, unit.Owner == 0 ? 1 : 0))
                 return BIG_WEIGHT;
 
@@ -134,7 +214,7 @@ namespace AStar
         /// <param name="allPoints">Все точки сети</param>
         /// <returns>Матрица распространения</returns>
         private static ExpansionMatrixConteiner GetExpansionMatrix(APoint start, APoint goal, IEnumerable<APoint> allPoints,
-            Unit unit, Point[,] map )
+            Unit unit, Point[,] map , bool isCostPath)
         {
             foreach (var point in allPoints)
             {
@@ -175,7 +255,7 @@ namespace AStar
                 {
                     if (closedSet.Contains(y)) continue;
 
-                    var tentativeGScore = x.G + x.GetCost(y,unit, map);
+                    var tentativeGScore = x.G + x.GetCost(y,unit, map, isCostPath);
                     bool tentativeIsBetter;
 
                     if (!openSet.Contains(y))
@@ -210,12 +290,13 @@ namespace AStar
         /// <param name="goal">Целевая точка пути</param>
         /// <param name="allPoints">Все точки сети</param>
         /// <returns>Оптимальный путь от стартовой точки до целевой</returns>
-        public static IList<APoint> GetPath(APoint start, APoint goal, IEnumerable<APoint> allPoints, Unit unit, Point[,] map)
+        public static IList<APoint> GetPath(APoint start, APoint goal, IEnumerable<APoint> allPoints, Unit unit,
+            Point[,] map, bool isCostPath)
         {
-            var emc = GetExpansionMatrix(start, goal, allPoints, unit, map);
+            var emc = GetExpansionMatrix(start, goal, allPoints, unit, map, isCostPath);
             return ReconstructPath(emc.RealGoalPoint);
         }
-        
+
 
         /// <summary>
         /// Получение точки с минимальным значением после суммирования матриц распространения
@@ -775,6 +856,92 @@ class Player
     {
         var watch = System.Diagnostics.Stopwatch.StartNew();
 
+        Building saveBuilding = null;
+
+        if (gold > TowerCost)
+        {
+            var endCostPoint = table[myBase.Y, myBase.X];
+            IList<APoint> minCostPath = null;
+            var minSumCost = double.MaxValue;
+            foreach (var oppUnit in oppUnits)
+            {
+                var startCostPoint = table[oppUnit.Y, oppUnit.X];
+                var costPath = Calculator.GetPath(startCostPoint, endCostPoint, allPoints, oppUnit, map, true);
+                var sumCost = 0d;
+                for (var i = 1; i < costPath.Count; ++i)
+                {
+                    var cost = costPath[i - 1].GetCost(costPath[i], oppUnit, map, true);
+                    if (i == 1 && (cost == 10 || oppUnit.Level == 3 || GetUnitCost(oppUnit.Level) > cost))
+                        cost = 0;
+                    sumCost += cost;
+                }
+
+                if (sumCost < minSumCost)
+                {
+                    minSumCost = sumCost;
+                    minCostPath = costPath;
+                }
+            }
+
+            if (minSumCost <= oppGold + oppIncome)
+            {
+                var maxDefCount = -1;
+                var minDefWeight = int.MaxValue;
+                Point resPoint = null;
+                for (var i = 1; i < minCostPath.Count; ++i)
+                {
+                    AStarPoint asPoint = minCostPath[i] as AStarPoint;
+                    var mapPoint = map[asPoint.Y, asPoint.X];
+                    if (mapPoint == null || mapPoint.Owner != 0 || !mapPoint.IsActive || mapPoint is Unit ||
+                        mapPoint is Building || mineSpots.Any(ms => ms.X == asPoint.X && ms.Y == asPoint.Y))
+                        continue;
+
+                    var prevAsPoint = minCostPath[i - 1] as AStarPoint;
+                    var mapPrevAsPoint = map[prevAsPoint.Y, prevAsPoint.X];
+                    var count = 0;
+                    var weight = 0;
+                    if (mapPrevAsPoint != null && mapPrevAsPoint.Owner == 0)
+                    {
+                        count++;
+                        if (mapPrevAsPoint is Unit mpasUnit)
+                        {
+                            weight += GetUnitCost(mpasUnit.Level);
+                        }
+                        else if (mapPrevAsPoint is Building mpasBuilding)
+                        {
+                            if (mpasBuilding.BuildingType == 2)
+                                weight += 30;
+                        }
+                        else
+                        {
+                            weight += 0;
+                        }
+                    }
+                    else
+                    {
+                        weight += BIG_WEIGHT;
+                    }
+
+                    if (count > maxDefCount || count == maxDefCount && weight < minDefWeight)
+                    {
+                        maxDefCount = count;
+                        minDefWeight = weight;
+                        resPoint = mapPoint;
+                    }
+                    
+                }
+
+                if (resPoint != null)
+                {
+                    Console.Error.WriteLine("SAVE TOWER");
+                    saveBuilding = new Building(resPoint.X, resPoint.Y, 0, 2, true);
+                    gold -= TowerCost;
+                    map[resPoint.Y, resPoint.X] = saveBuilding;
+                }
+            }
+        }
+
+
         var oppBorderMap = GetOppBorderMap(map);
 
         //стоим всеми
@@ -967,7 +1134,7 @@ class Player
         foreach (var myUnit in myUnits)
         {
             var startPoint = table[myUnit.Y, myUnit.X];
-            var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map);
+            var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false);
             if (path.Count < 2) continue;
 
             var isMySolder = false;
@@ -1040,7 +1207,8 @@ class Player
                 table[bestCcp.Y, bestCcp.X],
                 allPoints,
                 bestUnit,
-                map);
+                map,
+                false);
 
             var bestStep = bestPath[1] as AStarPoint;
             if (CanMove(bestUnit, map[bestStep.Y,bestStep.X], map))
@@ -1549,6 +1717,8 @@ class Player
         //    }
         //}
 
+        if (saveBuilding != null)
+            bestBuildTowers.Insert(0, saveBuilding);
         return new Command() {RecruitmentUnits = bestRecUnits, Moves = moves, BuilingTowers = bestBuildTowers};
     }
 
