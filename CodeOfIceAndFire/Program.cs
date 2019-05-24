@@ -726,7 +726,7 @@ class Player
                 map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 1, true);
                 map[n.Y,n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
 
-                var killedPointsCount = GetBestRecruitmentUnitsCount(map, oppBase, myBase, oppGold, n, 0, false, out var oppRecUnits);
+                var killedPointsCount = GetBestRecruitmentUnitsCount(map, oppBase, myBase, oppGold, n, 0, n.Owner == 0, out var oppRecUnits);
                 
                 map[unit.Y,unit.X] = savedUnit;
                 map[n.Y,n.X] = savedPoint;
