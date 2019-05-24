@@ -657,7 +657,7 @@ class Player
     }
 
 
-    static IEnumerable<Point> GetRecruitmentPoints(Point[,] map, int owner)
+    static List<Point> GetRecruitmentPoints(Point[,] map, int owner)
     {
         var recruitmentPoints = new List<Point>();
         for (var i = 0; i <Size; ++i)
@@ -682,7 +682,7 @@ class Player
         return recruitmentPoints;
     }
 
-    static IEnumerable<Point> GetRecruitmentPoints(Point[,] map, Point point, int owner)
+    static List<Point> GetRecruitmentPoints(Point[,] map, Point point, int owner)
     {
         var neighbours = new List<Point>();
         if (point.Y > 0 && map[point.Y - 1, point.X] != null && map[point.Y - 1, point.X].Owner != owner)
@@ -693,7 +693,7 @@ class Player
             neighbours.Add(map[point.Y, point.X - 1]);
         if (point.X < Size - 1 && map[point.Y, point.X + 1] != null && map[point.Y, point.X + 1].Owner != owner)
             neighbours.Add(map[point.Y, point.X + 1]);
-       
+
         return neighbours;
     }
 
@@ -709,7 +709,7 @@ class Player
 
     static int GetOppMaxKillCount(IList<Unit> oppUnits, Point[,] map, Building myBase, Building oppBase, int oppGold)
     {
-        int maxKillCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, null, 0, false, out _);
+        int maxKillCount = GetBestRecruitmentUnitsCount(map, oppBase, myBase, oppGold, null, 0, false, out _);
 
         foreach (var unit in oppUnits)
         {
@@ -723,10 +723,10 @@ class Player
                 var savedUnit = unit;
                 var savedPoint = n;
 
-                map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
+                map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 1, true);
                 map[n.Y,n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
 
-                var killedPointsCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, n, 0, false, out var oppRecUnits);
+                var killedPointsCount = GetBestRecruitmentUnitsCount(map, oppBase, myBase, oppGold, n, 0, false, out var oppRecUnits);
                 
                 map[unit.Y,unit.X] = savedUnit;
                 map[n.Y,n.X] = savedPoint;
@@ -1507,7 +1507,7 @@ class Player
         return false;
     }
 
-    static int GetBestRecruitmentUnitsCount(Point[,] map, Building oppBase, int gold, Point pointFrom, int deepLevel, bool gotOppPoints, out List<Unit> resUnits)
+    static int GetBestRecruitmentUnitsCount(Point[,] map, Building myBase, Building oppBase, int gold, Point pointFrom, int deepLevel, bool gotOppPoints, out List<Unit> resUnits)
     {
         var killedPoints = 0;
         if (pointFrom != null && pointFrom.Owner == oppBase.Owner &&
@@ -1524,10 +1524,28 @@ class Player
 
         int owner = oppBase.Owner == 1 ? 0 : 1;
 
-        var recruitmentPoints = pointFrom == null
-            ? GetRecruitmentPoints(map, owner)
-            : GetRecruitmentPoints(map, pointFrom, owner);
-
+        List<Point> recruitmentPoints;
+        IList<Point> activatedPoints = null;
+        if (pointFrom == null)
+        {
+            recruitmentPoints = GetRecruitmentPoints(map, owner);
+        }
+        else
+        {
+            recruitmentPoints = GetRecruitmentPoints(map, pointFrom, owner);
+            activatedPoints = UpdateAfterMoveMap(map, myBase);
+            foreach (var ap in activatedPoints)
+            {
+                var rps = GetRecruitmentPoints(map, ap, owner);
+                foreach (var rp in rps)
+                {
+                    if (!recruitmentPoints.Contains(rp))
+                        recruitmentPoints.Add(rp);
+                }
+            }
+        }
+        
+        
         var maxKilledPoints = 0;
         int minOppBaseDist = int.MaxValue;
         var bestResUnits = new List<Unit>();
@@ -1545,6 +1563,7 @@ class Player
             map[rp.Y, rp.X] = unit;
 
             var killedPointsCur = GetBestRecruitmentUnitsCount(map,
+                myBase,
                 oppBase,
                 gold - cost,
                 rp,
@@ -1562,6 +1581,10 @@ class Player
                 bestResUnits = resUnitsCur;
             }
         }
+
+        if (activatedPoints != null)
+            foreach (var ap in activatedPoints)
+                ap.IsActive = false;
 
         if (!hasRecPoint)
         {
