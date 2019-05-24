@@ -1999,7 +1999,7 @@ class Player
 
     public static bool IsTowerCell(int x, int y, Point[,] map, int owner)
     {
-        return map[y,x] != null && map[y,x].IsActive && map[y,x].Owner == owner && map[y,x] is Building building &&
+        return map[y,x] != null && map[y,x].Owner == owner && map[y,x] is Building building &&
                building.BuildingType == 2;
     }
 
