@@ -933,7 +933,7 @@ class Player
         int maxProtectPointsCount = 0;
 
         //вариант с башнями
-        if (gold > TowerCost)
+        if (gold >= TowerCost)
         {
             for (var i = Size - 1; i >= 0; --i)
             {
@@ -990,6 +990,49 @@ class Player
                 }
             }
         }
+
+        //если построили башню - нанимаем солдат на остаток
+        if (bestBuildTowers.Any() && gold >= RecruitmentCost1)
+        {
+            foreach (var bbt in bestBuildTowers)
+            {
+                map[bbt.Y, bbt.X] = bbt;
+            }
+
+            gold -= TowerCost;
+            activatedPoints = UpdateAfterMoveMap(map, myBase);//активируем мои точки в результате движения юнитов
+            allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, income, null, out allMoveRecUnits);
+
+            foreach (var ru in allMoveRecUnits)//снимаем 1 за захваченные тренировкой точки врага
+            {
+                var mapP = map[ru.Y, ru.X];
+                if (mapP.Owner == 1 && !(mapP is Unit) && (!(mapP is Building b) || b.BuildingType != 2) && mapP.IsActive)
+                    allMoveResOppGold--;
+            }
+
+            allMoveCapturedPoints = UpdateMap(map, allMoveRecUnits, allMoveLc);
+            
+            foreach (var unit in allMoveLc.KilledUnits)
+            {
+                allMoveResOppGold += GetUnitUpkeep(unit.Level);
+                allMoveResOppGold--;//за контрольную точку
+            }
+
+            foreach (var b in allMoveLc.DeactivatedBuildings)
+                allMoveResOppGold--;//за контрольную точку
+
+            foreach (var point in allMoveLc.LostPoint)
+                allMoveResOppGold--;
+
+
+            oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
+            UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedPoints);
+
+            maxSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
+            maxDeltaKillCount = maxSumKill - oppKilledCount;
+            bestRecUnits.AddRange(allMoveRecUnits);
+        }
+
 
 
         Tuple<Unit, Point> bestMove = null;
@@ -1075,63 +1118,63 @@ class Player
 
 
                 //вариант с башнями
-                if (gold > TowerCost)
-                {
-                    for (var i = Size - 1; i >= 0; --i)
-                    {
-                        for (var j = Size - 1; j >= 0; --j)
-                        {
-                            var point = map[i, j];
-                            if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
-                                continue;
+                //if (gold > TowerCost)
+                //{
+                //    for (var i = Size - 1; i >= 0; --i)
+                //    {
+                //        for (var j = Size - 1; j >= 0; --j)
+                //        {
+                //            var point = map[i, j];
+                //            if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
+                //                continue;
 
-                            //if (!IsCloseBorderPoint(point, map)) continue;
-                            if (oppBorderMap[i, j] > 2) continue;
+                //            //if (!IsCloseBorderPoint(point, map)) continue;
+                //            if (oppBorderMap[i, j] > 2) continue;
 
-                            var pointNeighbours = GetMapNeighbours(map, point, false);
-                            var protectPointsCount = 0;
-                            foreach (var pn in pointNeighbours)
-                            {
-                                if (pn == null || pn.Owner != 0) continue;
-                                if (IsTowerInfluenceCell(pn.X, pn.Y, map, 0)) continue;
-                                protectPointsCount++;
-                            }
+                //            var pointNeighbours = GetMapNeighbours(map, point, false);
+                //            var protectPointsCount = 0;
+                //            foreach (var pn in pointNeighbours)
+                //            {
+                //                if (pn == null || pn.Owner != 0) continue;
+                //                if (IsTowerInfluenceCell(pn.X, pn.Y, map, 0)) continue;
+                //                protectPointsCount++;
+                //            }
 
-                            if (protectPointsCount <= 1) continue;
+                //            if (protectPointsCount <= 1) continue;
 
-                            if (!IsTowerInfluenceCell(point.X, point.Y, map, 0))
-                                protectPointsCount++;
+                //            if (!IsTowerInfluenceCell(point.X, point.Y, map, 0))
+                //                protectPointsCount++;
 
-                            var tower = new Building(j, i, 0, 2, true);
-                            map[i, j] = tower;
+                //            var tower = new Building(j, i, 0, 2, true);
+                //            map[i, j] = tower;
 
-                            var towerOppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map),
-                                map,
-                                myBase,
-                                oppBase,
-                                oppGold + oppIncome + allMoveOppAddGold);
-                            if (towerOppKilledCount >= noTowersOppKilledCount)
-                            {
-                                map[i, j] = point;
-                                continue; //не строим башню, если она никого не спасет
-                            }
+                //            var towerOppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map),
+                //                map,
+                //                myBase,
+                //                oppBase,
+                //                oppGold + oppIncome + allMoveOppAddGold);
+                //            if (towerOppKilledCount >= noTowersOppKilledCount)
+                //            {
+                //                map[i, j] = point;
+                //                continue; //не строим башню, если она никого не спасет
+                //            }
 
-                            if (moveKilledCount - towerOppKilledCount > maxDeltaKillCount ||
-                                moveKilledCount - towerOppKilledCount == maxDeltaKillCount && protectPointsCount > maxProtectPointsCount)
-                            {
-                                maxSumKill = moveKilledCount;
-                                maxDeltaKillCount = moveKilledCount - towerOppKilledCount;
-                                maxProtectPointsCount = protectPointsCount;
-                                bestMove = new Tuple<Unit, Point>(unit, n);
-                                bestRecUnits = new List<Unit>();
-                                bestBuildTowers = new List<Building>() { tower };
-                                Console.Error.WriteLine($"TOWER_MOVE: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
-                            }
+                //            if (moveKilledCount - towerOppKilledCount > maxDeltaKillCount ||
+                //                moveKilledCount - towerOppKilledCount == maxDeltaKillCount && protectPointsCount > maxProtectPointsCount)
+                //            {
+                //                maxSumKill = moveKilledCount;
+                //                maxDeltaKillCount = moveKilledCount - towerOppKilledCount;
+                //                maxProtectPointsCount = protectPointsCount;
+                //                bestMove = new Tuple<Unit, Point>(unit, n);
+                //                bestRecUnits = new List<Unit>();
+                //                bestBuildTowers = new List<Building>() { tower };
+                //                Console.Error.WriteLine($"TOWER_MOVE: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
+                //            }
 
-                            map[i, j] = point;
-                        }
-                    }
-                }
+                //            map[i, j] = point;
+                //        }
+                //    }
+                //}
 
 
                 //активировать точки тут смысла нет, т.к. тренировка всегда будет рядом с мувом
