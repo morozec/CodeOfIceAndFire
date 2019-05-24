@@ -692,7 +692,7 @@ class Player
 
     static int GetOppMaxKillCount(IList<Unit> oppUnits, Point[,] map, Building myBase, Building oppBase, int oppGold)
     {
-        int maxKillCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, null, 0, out _);
+        int maxKillCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, null, 0, false, out _);
 
         foreach (var unit in oppUnits)
         {
@@ -709,7 +709,7 @@ class Player
                 map[unit.Y,unit.X] = new Point(unit.X, unit.Y, 0, true);
                 map[n.Y,n.X] = new Unit(n.X, n.Y, unit.Owner, unit.Id, unit.Level);
 
-                var killedPointsCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, n, 0, out var oppRecUnits);
+                var killedPointsCount = GetBestRecruitmentUnitsCount(map, myBase, oppGold, n, 0, false, out var oppRecUnits);
                 
                 map[unit.Y,unit.X] = savedUnit;
                 map[n.Y,n.X] = savedPoint;
@@ -1317,7 +1317,7 @@ class Player
         return false;
     }
 
-    static int GetBestRecruitmentUnitsCount(Point[,] map, Building oppBase, int gold, Point pointFrom, int deepLevel, out List<Unit> resUnits)
+    static int GetBestRecruitmentUnitsCount(Point[,] map, Building oppBase, int gold, Point pointFrom, int deepLevel, bool gotOppPoints, out List<Unit> resUnits)
     {
         var killedPoints = 0;
         if (pointFrom != null && pointFrom.Owner == oppBase.Owner &&
@@ -1327,7 +1327,8 @@ class Player
         if (gold < RecruitmentCost1 || deepLevel >= 5)
         {
             resUnits = new List<Unit>();
-            killedPoints += GetKillCount(map, oppBase);
+            if (gotOppPoints)
+                killedPoints += GetKillCount(map, oppBase);
             return killedPoints;
         }
 
@@ -1339,7 +1340,8 @@ class Player
         if (!recruitmentPoints.Any())
         {
             resUnits = new List<Unit>();
-            killedPoints += GetKillCount(map, oppBase);
+            if (gotOppPoints)
+                killedPoints += GetKillCount(map, oppBase);
             return killedPoints;
         }
 
@@ -1359,8 +1361,13 @@ class Player
             var unit = new Unit(rp.X, rp.Y, owner, -1, level);
             map[rp.Y, rp.X] = unit;
 
-
-            var killedPointsCur = GetBestRecruitmentUnitsCount(map, oppBase, gold - cost, rp, deepLevel + 1, out var resUnitsCur);
+            var killedPointsCur = GetBestRecruitmentUnitsCount(map,
+                oppBase,
+                gold - cost,
+                rp,
+                deepLevel + 1,
+                gotOppPoints || rp.Owner == oppBase.Owner,
+                out var resUnitsCur);
 
             map[rp.Y, rp.X] = changePoint;
 
@@ -1376,7 +1383,8 @@ class Player
         if (!hasRecPoint)
         {
             resUnits = new List<Unit>();
-            killedPoints += GetKillCount(map, oppBase);
+            if (gotOppPoints)
+                killedPoints += GetKillCount(map, oppBase);
             return killedPoints;
         }
 
