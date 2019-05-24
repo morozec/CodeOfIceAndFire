@@ -1214,6 +1214,11 @@ class Player
       
         foreach (var move in moves)
         {
+            if (map[move.Item1.Y, move.Item1.X] is Building)//здесь уже строим башню
+            {
+                continue;
+            }
+
             var unit = move.Item1;
             var step = move.Item2;
 
