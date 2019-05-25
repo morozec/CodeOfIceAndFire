@@ -522,8 +522,12 @@ class Player
         MoveNoTower,
         MoveBuildTower
     }
-
+#if DEBUG
+    private const int TIME = 5000;
+#else
     private const int TIME = 50;
+#endif
+
     private const int OppBorderTowersDist = 3;
     private const int MaxDeepLevel = 5;
     const int BIG_WEIGHT = 10000;
@@ -1196,17 +1200,17 @@ class Player
             var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false);
             if (path.Count < 2) continue;
 
-            var isMySolder = false;
+            var isNoWay = false;
             for (var i = 1; i < path.Count; ++i)
             {
-                if ((path[i] as AStarPoint).IsMySolder)
+                if (path[i].G >= BIG_WEIGHT)
                 {
-                    isMySolder = true;
+                    isNoWay = true;
                     break;
                 }
             }
 
-            if (isMySolder)
+            if (isNoWay)
             {
                 noWayUnits.Add(myUnit);
                 continue;
