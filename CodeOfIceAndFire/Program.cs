@@ -1,20 +1,10 @@
 ﻿using System;
 using System.Linq;
-using System.IO;
-using System.Text;
-using System.Collections;
 using System.Collections.Generic;
-using System.Net;
-using System.Runtime.Remoting.Channels;
 using AStar;
 using MapPoints;
 
 
-/**
- * Auto-generated code below aims at helping you parse
- * the standard input according to the problem statement.
- **/
- 
 
 namespace AStar
 {
@@ -184,35 +174,14 @@ namespace AStar
         }
     }
 
-
-    /// <summary>
-    /// Матрица распростарения
-    /// </summary>
     public class ExpansionMatrixConteiner
     {
-        /// <summary>
-        /// Стоимости прохода до точек сети
-        /// </summary>
         public IDictionary<APoint, double> ExpansionMatrix { get; set; }
-
-
         public APoint RealGoalPoint { get; set; }
-
-        ///// <summary>
-        ///// Оптимальные пути прохода до точек сети
-        ///// </summary>
-        //public IDictionary<Point, IList<Point>> Path { get; set; } 
     }
 
     public static class Calculator
     {
-        /// <summary>
-        /// Расчет матрицы распространения
-        /// </summary>
-        /// <param name="start">Точка, для которой рассчитывается матрица распространения</param>
-        /// <param name="goal">Целевая точка. Если null, то матрица распространения рассчитывается от стартовой точки до всех остальных точек сети</param>
-        /// <param name="allPoints">Все точки сети</param>
-        /// <returns>Матрица распространения</returns>
         private static ExpansionMatrixConteiner GetExpansionMatrix(APoint start, APoint goal, IEnumerable<APoint> allPoints,
             Unit unit, Point[,] map , bool isCostPath)
         {
@@ -283,13 +252,7 @@ namespace AStar
             return emc;
         }
 
-        /// <summary>
-        /// Расчет оптимального пути до целевой точки
-        /// </summary>
-        /// <param name="start">Стартовая точка пути</param>
-        /// <param name="goal">Целевая точка пути</param>
-        /// <param name="allPoints">Все точки сети</param>
-        /// <returns>Оптимальный путь от стартовой точки до целевой</returns>
+       
         public static IList<APoint> GetPath(APoint start, APoint goal, IEnumerable<APoint> allPoints, Unit unit,
             Point[,] map, bool isCostPath)
         {
@@ -299,74 +262,7 @@ namespace AStar
             var emc = GetExpansionMatrix(start, goal, allPoints, unit, map, isCostPath);
             return ReconstructPath(emc.RealGoalPoint);
         }
-
-
-        /// <summary>
-        /// Получение точки с минимальным значением после суммирования матриц распространения
-        /// </summary>
-        /// <param name="expansionMatrices">Матрицы распространения</param>
-        /// <param name="allPoints">Все точки сети</param>
-        /// <returns>Точка с минимальной суммой</returns>
-        private static APoint GetMinCostPoint(IDictionary<APoint, ExpansionMatrixConteiner> expansionMatrices, IEnumerable<APoint> allPoints)
-        {
-
-            var summCosts = new Dictionary<APoint, double>();
-            foreach (var matrixPoint in allPoints)
-            {
-                summCosts.Add(matrixPoint, 0d);
-                foreach (var startPoint in expansionMatrices.Keys)
-                {
-                    summCosts[matrixPoint] += expansionMatrices[startPoint].ExpansionMatrix[matrixPoint];
-                }
-            }
-
-            APoint cps = null;
-            var summCost = double.MaxValue;
-            foreach (var matrixPoint in summCosts.Keys)
-            {
-                if (summCosts[matrixPoint] < summCost)
-                {
-                    cps = matrixPoint;
-                    summCost = summCosts[matrixPoint];
-                }
-            }
-
-            return cps;
-        }
-
-        /// <summary>
-        /// Получение точки с минимальной стомостью прохода до (и от) целевой 
-        /// </summary>
-        /// <param name="expansionMatrices">Матрицы распространения</param>
-        /// <param name="notTraversedStartPoints">Список непройденных точек. Среди них будет проводиться поиск оптимальной</param>
-        /// <param name="collectionPoint">Целевая точка</param>
-        /// <returns>Точка с минимальной стомостью прохода</returns>
-        private static APoint GetNearestPoint(
-            IDictionary<APoint, ExpansionMatrixConteiner> expansionMatrices,
-            IEnumerable<APoint> notTraversedStartPoints,
-            APoint collectionPoint)
-        {
-            APoint nearestPoint = null;
-            var minCost = double.MaxValue;
-
-            foreach (var point in notTraversedStartPoints)
-            {
-                if (expansionMatrices[point].ExpansionMatrix[collectionPoint] < minCost)
-                {
-                    nearestPoint = point;
-                    minCost = expansionMatrices[point].ExpansionMatrix[collectionPoint];
-                }
-            }
-
-            return nearestPoint;
-        }
-
-
-        /// <summary>
-        /// Поиск точки с минимальной эврестической функцией (F)
-        /// </summary>
-        /// <param name="points">Список точек</param>
-        /// <returns>Точка с минимальной эврестической функцией</returns>
+      
         private static APoint GetPointWithMinF(HashSet<APoint> points)
         {
             if (!points.Any())
@@ -386,12 +282,7 @@ namespace AStar
 
             return resultPoint;
         }
-
-        /// <summary>
-        /// Восстановление оптимального пути
-        /// </summary>
-        /// <param name="goal">Целевая точка</param>
-        /// <returns>Оптимальный путь до целевой точки</returns>
+       
         private static IList<APoint> ReconstructPath(APoint goal)
         {
             var resultList = new List<APoint>();
@@ -408,29 +299,7 @@ namespace AStar
 
             return resultList;
         }
-
-        private static IList<APoint> ReconstructPath(APoint goal, ExpansionMatrixConteiner expansionMatrixConteiner, IEnumerable<APoint> allPoints)
-        {
-            var path = new List<APoint>() { goal };
-            var currentPoint = goal;
-            while (expansionMatrixConteiner.ExpansionMatrix[currentPoint] > 0)
-            {
-                APoint closestNeighbour = null;
-                var minCost = double.MaxValue;
-                foreach (var neihgbour in currentPoint.GetNeighbors(allPoints))
-                {
-                    if (expansionMatrixConteiner.ExpansionMatrix[neihgbour] < minCost)
-                    {
-                        minCost = expansionMatrixConteiner.ExpansionMatrix[neihgbour];
-                        closestNeighbour = neihgbour;
-                    }
-                }
-                currentPoint = closestNeighbour;
-                path.Add(closestNeighbour);
-            }
-
-            return path;
-        }
+        
     }
 }
 
@@ -526,7 +395,7 @@ class Player
         MoveBuildTower
     }
 #if DEBUG
-    private const int TIME = 5000;
+    private const int TIME = 500000;
 #else
     private const int TIME = 50;
 #endif
@@ -542,6 +411,7 @@ class Player
     private const int Size = 12;
     private static Random _rnd = new Random();
     private static int[,] _oppBaseMap; 
+    private static bool[][,] _oppNeutralMap; 
     
 
     static void Main(string[] args)
@@ -680,6 +550,10 @@ class Player
             var myBase = myBuildings.Single(b => b.BuildingType == 0);
             var oppBase = oppBuilding.Single(b => b.BuildingType == 0);
 
+#if DEBUG
+            _oppBaseMap = GetOppBaseMap(map, oppBase);
+#endif
+
             if (isFire && oCount == 1 || !isFire && oCount == 2)
             {
                 _oppBaseMap = GetOppBaseMap(map, oppBase);
@@ -695,7 +569,7 @@ class Player
                 continue;
             }
 
-
+            _oppNeutralMap = GetOppNeutralMap(map, myBase, oppBase);
            
             
             var command = GetCommand(myUnits,
@@ -794,6 +668,8 @@ class Player
                     continue;
                 }
 
+                if (point.Owner == -1 && !_oppNeutralMap[owner][point.Y, point.X]) continue;
+
                 var neighbours = GetMapNeighbours(map, point, false);
                 if (!neighbours.Any(n => n != null && n.Owner == owner && n.IsActive))
                     continue;
@@ -808,13 +684,17 @@ class Player
     static List<Point> GetRecruitmentPoints(Point[,] map, Point point, int owner)
     {
         var neighbours = new List<Point>();
-        if (point.X > 0 && map[point.Y, point.X - 1] != null && map[point.Y, point.X - 1].Owner != owner)
+        if (point.X > 0 && map[point.Y, point.X - 1] != null && map[point.Y, point.X - 1].Owner != owner && 
+            (map[point.Y, point.X - 1].Owner != -1 || _oppNeutralMap[owner][point.Y, point.X-1]))
             neighbours.Add(map[point.Y, point.X - 1]);
-        if (point.X < Size - 1 && map[point.Y, point.X + 1] != null && map[point.Y, point.X + 1].Owner != owner)
+        if (point.X < Size - 1 && map[point.Y, point.X + 1] != null && map[point.Y, point.X + 1].Owner != owner &&
+            (map[point.Y, point.X + 1].Owner != -1 || _oppNeutralMap[owner][point.Y, point.X + 1]))
             neighbours.Add(map[point.Y, point.X + 1]);
-        if (point.Y > 0 && map[point.Y - 1, point.X] != null && map[point.Y - 1, point.X].Owner != owner)
+        if (point.Y > 0 && map[point.Y - 1, point.X] != null && map[point.Y - 1, point.X].Owner != owner &&
+            (map[point.Y - 1, point.X].Owner != -1 || _oppNeutralMap[owner][point.Y-1, point.X]))
             neighbours.Add(map[point.Y - 1, point.X]);
-        if (point.Y < Size - 1 && map[point.Y + 1, point.X] != null && map[point.Y + 1, point.X].Owner != owner)
+        if (point.Y < Size - 1 && map[point.Y + 1, point.X] != null && map[point.Y + 1, point.X].Owner != owner &&
+            (map[point.Y + 1, point.X].Owner != -1 || _oppNeutralMap[owner][point.Y+1, point.X]))
             neighbours.Add(map[point.Y + 1, point.X]);
         
 
@@ -2245,16 +2125,7 @@ class Player
 
     static LossContainer GetLossContainer(Point[,] map, Building oppBase)
     {
-        //var aliveUnits = new Dictionary<Unit, bool>();
-        //for (var i = 0; i < Size; ++i)
-        //{
-        //    for (var j = 0; j < Size; ++j)
-        //    {
-        //        if (map[i,j] is Unit mapUnit && mapUnit.Owner == oppBase.Owner)
-        //            aliveUnits.Add(mapUnit, true);
-        //    }
-        //}
-
+       
         //BFS
 
 
@@ -2266,8 +2137,6 @@ class Player
         while (queue.Count > 0)
         {
             var p = queue.Pop();
-            //if (p is Unit pUnit && pUnit.Owner == oppBase.Owner)
-            //    aliveUnits.Remove(pUnit);
            
             if (p.Y > 0)
             {
@@ -2329,23 +2198,7 @@ class Player
         return lc;
     }
 
-    //static bool IsMyPoint(char c)
-    //{
-    //    return c == 'o' || c == 'O';
-    //}
-
-    //static Point GetMovePoint(Unit unit, IList<IList<Point>> map, bool isFire)
-    //{
-    //    if (_rnd.NextDouble() > 0.5)
-    //    {
-    //        return GetHorizontalMove(unit, map, isFire) ??
-    //               GetVerticalMove(unit, map, isFire);
-    //    }
-
-    //    return GetVerticalMove(unit, map, isFire) ??
-    //           GetHorizontalMove(unit, map, isFire);
-
-    //}
+ 
 
     static bool CanMove(Unit unit, Point point, Point[,] map)
     {
@@ -2372,54 +2225,7 @@ class Player
         //нейтральная точка
         return true;
     }
-    
-    //static Point GetHorizontalMove(Unit unit, IList<IList<Point>> map, bool isFire)
-    //{
-    //    if (isFire)
-    //    {
-    //        if (unit.X < map[unit.Y].Count - 1 && map[unit.Y][unit.X + 1] != null)
-    //        {
-    //            var mapMovePoint = GetMapMovePoint(unit, map[unit.Y][unit.X + 1]);
-    //            if (mapMovePoint != null)
-    //                return mapMovePoint;
-    //        }
-    //    }
-    //    else
-    //    {
-    //        if (unit.X > 0 && map[unit.Y][unit.X - 1] != null)
-    //        {
-    //            var mapMovePoint = GetMapMovePoint(unit, map[unit.Y][unit.X - 1]);
-    //            if (mapMovePoint != null)
-    //                return mapMovePoint;
-    //        }
-    //    }
-
-    //    return null;
-    //}
-
-    //static Point GetVerticalMove(Unit unit, IList<IList<Point>> map, bool isFire)
-    //{
-    //    if (isFire)
-    //    {
-    //        if (unit.Y < map.Count - 1 && map[unit.Y + 1][unit.X] != null)
-    //        {
-    //            var mapMovePoint = GetMapMovePoint(unit, map[unit.Y + 1][unit.X]);
-    //            if (mapMovePoint != null)
-    //                return mapMovePoint;
-    //        }
-    //    }
-    //    else
-    //    {
-    //        if (unit.Y > 0 && map[unit.Y - 1][unit.X] != null)
-    //        {
-    //            var mapMovePoint = GetMapMovePoint(unit, map[unit.Y - 1][unit.X]);
-    //            if (mapMovePoint != null)
-    //                return mapMovePoint;
-    //        }
-    //    }
-
-    //    return null;
-    //}
+  
 
     static Point[,] GetMap(IList<string> lines, IList<Building> myBuildings, IList<Unit> myUnits,
         IList<Building> oppBuildings, IList<Unit> oppUnits)
@@ -2766,6 +2572,121 @@ class Player
         }
 
         return resMap;
+    }
+
+    public static bool[][,] GetOppNeutralMap(Point[,] map, Point myBase, Point oppBase)
+    {
+        var res = new bool[2][,];
+
+        var stack = new Stack<Point>();
+        stack.Push(oppBase);
+        var visitedPoints = new bool[Size, Size];
+
+        while (stack.Any())
+        {
+            var point = stack.Pop();
+            visitedPoints[point.Y, point.X] = true;
+
+            if (point.Y > 0)
+            {
+                if (map[point.Y - 1, point.X] != null && !visitedPoints[point.Y - 1, point.X] && map[point.Y - 1, point.X].Owner != 0)
+                {
+                    visitedPoints[point.Y - 1, point.X] = true;
+                    stack.Push(map[point.Y - 1, point.X]);
+
+                }
+            }
+
+            if (point.Y < Size - 1)
+            {
+                if (map[point.Y + 1, point.X] != null && !visitedPoints[point.Y + 1, point.X] && map[point.Y + 1, point.X].Owner != 0)
+                {
+                    visitedPoints[point.Y + 1, point.X] = true;
+                    stack.Push(map[point.Y + 1, point.X]);
+
+                }
+            }
+
+            if (point.X > 0)
+            {
+                if (map[point.Y, point.X - 1] != null && !visitedPoints[point.Y, point.X - 1] && map[point.Y, point.X-1].Owner != 0)
+                {
+                    visitedPoints[point.Y, point.X - 1] = true;
+                    stack.Push(map[point.Y, point.X - 1]);
+
+                }
+            }
+
+            if (point.X < Size - 1)
+            {
+                if (map[point.Y, point.X + 1] != null && !visitedPoints[point.Y, point.X + 1] && map[point.Y, point.X+1].Owner != 0)
+                {
+                    visitedPoints[point.Y, point.X + 1] = true;
+                    stack.Push(map[point.Y, point.X + 1]);
+
+                }
+            }
+
+        }
+
+        res[0] = visitedPoints;
+
+
+        stack = new Stack<Point>();
+        stack.Push(myBase);
+        visitedPoints = new bool[Size, Size];
+
+        while (stack.Any())
+        {
+            var point = stack.Pop();
+            visitedPoints[point.Y, point.X] = true;
+
+            if (point.Y > 0)
+            {
+                if (map[point.Y - 1, point.X] != null && !visitedPoints[point.Y - 1, point.X] && map[point.Y - 1, point.X].Owner != 1)
+                {
+                    visitedPoints[point.Y - 1, point.X] = true;
+                    stack.Push(map[point.Y - 1, point.X]);
+
+                }
+            }
+
+            if (point.Y < Size - 1)
+            {
+                if (map[point.Y + 1, point.X] != null && !visitedPoints[point.Y + 1, point.X] && map[point.Y + 1, point.X].Owner != 1)
+                {
+                    visitedPoints[point.Y + 1, point.X] = true;
+                    stack.Push(map[point.Y + 1, point.X]);
+
+                }
+            }
+
+            if (point.X > 0)
+            {
+                if (map[point.Y, point.X - 1] != null && !visitedPoints[point.Y, point.X - 1] && map[point.Y, point.X - 1].Owner != 1)
+                {
+                    visitedPoints[point.Y, point.X - 1] = true;
+                    stack.Push(map[point.Y, point.X - 1]);
+
+                }
+            }
+
+            if (point.X < Size - 1)
+            {
+                if (map[point.Y, point.X + 1] != null && !visitedPoints[point.Y, point.X + 1] && map[point.Y, point.X + 1].Owner != 1)
+                {
+                    visitedPoints[point.Y, point.X + 1] = true;
+                    stack.Push(map[point.Y, point.X + 1]);
+
+                }
+            }
+
+        }
+
+        res[1] = visitedPoints;
+
+
+        return res;
     }
    
 }
