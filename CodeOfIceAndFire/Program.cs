@@ -892,14 +892,9 @@ class Player
             {
                 var startCostPoint = table[oppUnit.Y, oppUnit.X];
                 var costPath = Calculator.GetPath(startCostPoint, endCostPoint, allPoints, oppUnit, map, true);
-                var sumCost = 0d;
-                for (var i = 1; i < costPath.Count; ++i)
-                {
-                    var cost = costPath[i - 1].GetCost(costPath[i], oppUnit, map, true);
-                    if (i == 1 && (cost == 10 || oppUnit.Level == 3 || GetUnitCost(oppUnit.Level) > cost))
-                        cost = 0;
-                    sumCost += cost;
-                }
+                var sumCost = costPath[costPath.Count - 1].G;
+                if (costPath[1].G <= 10 + 1E-3)
+                    sumCost -= 10;
 
                 if (sumCost < minSumCost)
                 {
@@ -955,6 +950,42 @@ class Player
                     }
                     
                 }
+
+                if (minSumCost <= oppGold + oppIncome - maxDefCount * 30)
+                    resPoint = null;
+
+                if (resPoint == null)
+                {
+                    var ns = new Dictionary<Point, int>();
+                    foreach (AStarPoint asp in minCostPath)
+                    {
+                        if (map[asp.Y, asp.X].Owner != 0) continue;
+
+                        var neighbours = GetMapNeighbours(map, map[asp.Y, asp.X], false);
+                        foreach (var n in neighbours)
+                        {
+                            if (n == null || n.Owner != 0 || !n.IsActive || n is Unit || n is Building ||
+                                mineSpots.Any(ms => ms.X == n.X && ms.Y == n.Y))
+                                continue;
+                            if (!ns.ContainsKey(n))
+                                ns.Add(n, 0);
+                            ns[n]++;
+                        }
+                    }
+
+                    int maxNeighbours = 0;
+                    foreach (var item in ns)
+                        if (item.Value > maxNeighbours)
+                        {
+                            maxNeighbours = item.Value;
+                            resPoint = item.Key;
+                        }
+
+                    if (minSumCost <= oppGold + oppIncome - maxNeighbours * 30)
+                        resPoint = null;
+                }
+
+                
 
                 if (resPoint != null)
                 {
