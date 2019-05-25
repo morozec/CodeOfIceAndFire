@@ -2122,10 +2122,10 @@ class Player
 
             //TODO: нормальный критерий
             if (bestLc == null || lcCur.IsWin || lcCur.KilledUnits.Count > bestLc.KilledUnits.Count ||
-                lcCur.KilledUnits.Count == bestLc.KilledUnits.Count && GetManhDist(rp, oppBase) < minOppBaseDist)
+                lcCur.KilledUnits.Count == bestLc.KilledUnits.Count && _oppBaseMap[rp.Y, rp.X] < minOppBaseDist)
             {
                 bestLc = lcCur;
-                minOppBaseDist = GetManhDist(rp, oppBase);
+                minOppBaseDist = _oppBaseMap[rp.Y, rp.X];
                 resUnitsCur.Insert(0, unit);
                 bestResUnits = resUnitsCur;
                 if (bestLc.IsWin)
