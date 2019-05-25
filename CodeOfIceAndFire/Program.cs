@@ -1356,7 +1356,7 @@ class Player
         UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedPoints);
 
         var allMoveSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
-        var allMoveDeltaKillCount = maxSumKill - oppKilledCount;
+        var allMoveDeltaKillCount = allMoveSumKill - oppKilledCount;
 
         if (allMoveDeltaKillCount >= maxDeltaKillCount)
         {
