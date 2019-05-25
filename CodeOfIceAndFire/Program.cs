@@ -584,6 +584,7 @@ class Player
             var allPoints = new List<AStarPoint>();
 
             var lines = new List<string>();
+            var oCount = 0;
             for (int i = 0; i < Size; i++)
             {
                 string line = Console.ReadLine(); Console.Error.WriteLine(line);
@@ -591,8 +592,14 @@ class Player
                 for (var j = 0; j < line.Length; ++j)
                 {
                     var owner = -1;
-                    if (line[j] == 'o' || line[j] == 'O') owner = 0;
+                    if (line[j] == 'o' || line[j] == 'O')
+                    {
+                        owner = 0;
+                        oCount++;
+                    }
                     else if (line[j] == 'x' || line[j] == 'X') owner = 1;
+                    var isBase = i == 0 && j == 0 || i == 11 && j == 11 || i == 10 && j == 11;
+                   
                     var aStarPoint = new AStarPoint()
                         {X = j, Y = i, Weight = line[j] == '#' ? BIG_WEIGHT : 1, Owner = owner, IsMySolder = false};
                     table[i, j] = aStarPoint;
@@ -667,6 +674,20 @@ class Player
                     oppUnits.Add(unit);
             }
 
+            if (isFire && oCount == 1 || !isFire && oCount == 2)
+            {
+                if (isFire)
+                {
+                    Console.WriteLine($"TRAIN 1 1 0; TRAIN 1 0 1;");
+                }
+                else
+                {
+                    Console.WriteLine($"TRAIN 1 10 11; TRAIN 1 11 9;");
+                }
+
+                continue;
+            }
+
 
             var map = GetMap(lines, myBuildings, myUnits, oppBuilding, oppUnits);
             var myBase = myBuildings.Single(b => b.BuildingType == 0);
@@ -717,7 +738,6 @@ class Player
                 else
                     break;
             }
-        
 
             Console.WriteLine(textCommand != "" ? textCommand : "WAIT");
         }
