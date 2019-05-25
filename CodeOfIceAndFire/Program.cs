@@ -293,6 +293,9 @@ namespace AStar
         public static IList<APoint> GetPath(APoint start, APoint goal, IEnumerable<APoint> allPoints, Unit unit,
             Point[,] map, bool isCostPath)
         {
+            start.G = 0;
+            start.H = 0;
+            start.CameFromPoint = null;
             var emc = GetExpansionMatrix(start, goal, allPoints, unit, map, isCostPath);
             return ReconstructPath(emc.RealGoalPoint);
         }
@@ -538,7 +541,7 @@ class Player
     const int TowerCost = 15;
     private const int Size = 12;
     private static Random _rnd = new Random();
-
+    private static int[,] _oppBaseMap; 
     
 
     static void Main(string[] args)
@@ -673,9 +676,13 @@ class Player
                 else
                     oppUnits.Add(unit);
             }
+            var map = GetMap(lines, myBuildings, myUnits, oppBuilding, oppUnits);
+            var myBase = myBuildings.Single(b => b.BuildingType == 0);
+            var oppBase = oppBuilding.Single(b => b.BuildingType == 0);
 
             if (isFire && oCount == 1 || !isFire && oCount == 2)
             {
+                _oppBaseMap = GetOppBaseMap(map, oppBase);
                 if (isFire)
                 {
                     Console.WriteLine($"TRAIN 1 1 0; TRAIN 1 0 1;");
@@ -689,9 +696,8 @@ class Player
             }
 
 
-            var map = GetMap(lines, myBuildings, myUnits, oppBuilding, oppUnits);
-            var myBase = myBuildings.Single(b => b.BuildingType == 0);
-            var oppBase = oppBuilding.Single(b => b.BuildingType == 0);
+           
+            
             var command = GetCommand(myUnits,
                 oppUnits,
                 map,
@@ -802,14 +808,15 @@ class Player
     static List<Point> GetRecruitmentPoints(Point[,] map, Point point, int owner)
     {
         var neighbours = new List<Point>();
-        if (point.Y > 0 && map[point.Y - 1, point.X] != null && map[point.Y - 1, point.X].Owner != owner)
-            neighbours.Add(map[point.Y - 1, point.X]);
-        if (point.Y < Size - 1 && map[point.Y + 1, point.X] != null && map[point.Y + 1, point.X].Owner != owner)
-            neighbours.Add(map[point.Y + 1, point.X]);
         if (point.X > 0 && map[point.Y, point.X - 1] != null && map[point.Y, point.X - 1].Owner != owner)
             neighbours.Add(map[point.Y, point.X - 1]);
         if (point.X < Size - 1 && map[point.Y, point.X + 1] != null && map[point.Y, point.X + 1].Owner != owner)
             neighbours.Add(map[point.Y, point.X + 1]);
+        if (point.Y > 0 && map[point.Y - 1, point.X] != null && map[point.Y - 1, point.X].Owner != owner)
+            neighbours.Add(map[point.Y - 1, point.X]);
+        if (point.Y < Size - 1 && map[point.Y + 1, point.X] != null && map[point.Y + 1, point.X].Owner != owner)
+            neighbours.Add(map[point.Y + 1, point.X]);
+        
 
         return neighbours;
     }
@@ -1248,12 +1255,19 @@ class Player
         foreach (var myUnit in myUnits)
         {
 
+            var startPoint = table[myUnit.Y, myUnit.X];
+           
+            
+
             var neighbours = GetMapNeighbours(map, myUnit, false);
             var gotStep = false;
             foreach (var n in neighbours)
             {
-                if (n == null || n.Owner == myUnit.Owner || GetManhDist(myUnit, oppBase) < GetManhDist(n, oppBase) ||
+                if (n == null || n.Owner == myUnit.Owner || 
                     !CanMove(myUnit, n, map))
+                    continue;
+
+                if (_oppBaseMap[n.Y,n.X] > _oppBaseMap[myUnit.Y, myUnit.X])
                     continue;
 
                 moves.Add(new Tuple<Unit, Point>(myUnit, map[n.Y, n.X]));
@@ -1271,7 +1285,6 @@ class Player
 
             if (gotStep) continue;
 
-            var startPoint = table[myUnit.Y, myUnit.X];
             var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false);
             if (path.Count < 2) continue;
 
@@ -2550,14 +2563,15 @@ class Player
     static IList<Point> GetMapNeighbours(Point[,] map, Point point, bool includeDiagonal)
     {
         var neighbours = new List<Point>();
+        if (point.X > 0)
+            neighbours.Add(map[point.Y, point.X - 1]);
+        if (point.X < Size - 1)
+            neighbours.Add(map[point.Y, point.X + 1]);
         if (point.Y > 0)
             neighbours.Add(map[point.Y - 1,point.X]);
         if (point.Y < Size - 1)
             neighbours.Add(map[point.Y + 1,point.X]);
-        if (point.X > 0)
-            neighbours.Add(map[point.Y,point.X - 1]);
-        if (point.X < Size - 1)
-            neighbours.Add(map[point.Y,point.X + 1]);
+        
 
         if (includeDiagonal)
         {
@@ -2611,6 +2625,66 @@ class Player
                 return true;
        
         return false;
+    }
+
+    static int[,] GetOppBaseMap (Point[,] map, Point oppBase)
+    {
+        var resMap = new int[Size, Size];
+
+        var visitedPoints = new bool[Size, Size];
+        var queue = new Queue<Tuple<Point, int>>();
+        queue.Enqueue(new Tuple<Point, int>(oppBase,0));
+        visitedPoints[oppBase.Y, oppBase.X] = true;
+
+        while (queue.Any())
+        {
+            var item = queue.Dequeue();
+            var point = item.Item1;
+            resMap[point.Y, point.X] = item.Item2;
+
+            if (point.Y > 0)
+            {
+                if (map[point.Y - 1, point.X] != null && !visitedPoints[point.Y - 1, point.X])
+                {
+                    visitedPoints[point.Y - 1, point.X] = true;
+                    queue.Enqueue(new Tuple<Point, int>(map[point.Y - 1, point.X], item.Item2 + 1));
+                    
+                }
+            }
+
+            if (point.Y < Size - 1)
+            {
+                if (map[point.Y + 1, point.X] != null && !visitedPoints[point.Y + 1, point.X])
+                {
+                    visitedPoints[point.Y + 1, point.X] = true;
+                    queue.Enqueue(new Tuple<Point, int>(map[point.Y + 1, point.X], item.Item2 + 1));
+
+                }
+            }
+
+            if (point.X > 0)
+            {
+                if (map[point.Y , point.X - 1] != null && !visitedPoints[point.Y , point.X - 1])
+                {
+                    visitedPoints[point.Y , point.X - 1] = true;
+                    queue.Enqueue(new Tuple<Point, int>(map[point.Y , point.X - 1], item.Item2 + 1));
+
+                }
+            }
+
+            if (point.X < Size - 1)
+            {
+                if (map[point.Y, point.X + 1] != null && !visitedPoints[point.Y, point.X + 1])
+                {
+                    visitedPoints[point.Y, point.X + 1] = true;
+                    queue.Enqueue(new Tuple<Point, int>(map[point.Y, point.X + 1], item.Item2 + 1));
+
+                }
+            }
+
+        }
+
+        return resMap;
     }
 
     static int[,] GetOppBorderMap(Point[,] map)
