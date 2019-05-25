@@ -1013,7 +1013,7 @@ class Player
         var allMoveResOppGold = oppGold + oppIncome;
 
         IList<Point> activatedPoints = new List<Point>();//активируем мои точки в результате движения юнитов
-        var allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, income, null, out var allMoveRecUnits);
+        var allMoveLc = GetBestRecruitmentUnits(map, myBase, oppBase, gold, income, null, out var allMoveRecUnits);
         if (allMoveLc.IsWin)
         {
             Console.Error.WriteLine("WIN");
@@ -1183,7 +1183,7 @@ class Player
             }
 
             activatedPoints = UpdateAfterMoveMap(map, myBase);//активируем мои точки в результате движения юнитов
-            allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold - TowerCost, income, null, out allMoveRecUnits);
+            allMoveLc = GetBestRecruitmentUnits(map, myBase, oppBase, gold - TowerCost, income, null, out allMoveRecUnits);
 
             if (allMoveLc.IsWin)
             {
@@ -1407,7 +1407,7 @@ class Player
         allMoveResOppGold = oppGold + oppIncome + allMoveOppAddGold;
 
         activatedPoints = UpdateAfterMoveMap(map, myBase);//активируем мои точки в результате движения юнитов
-        allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, income, null, out allMoveRecUnits);
+        allMoveLc = GetBestRecruitmentUnits(map, myBase, oppBase, gold, income, null, out allMoveRecUnits);
 
         if (allMoveLc.IsWin)
         {
@@ -1584,7 +1584,7 @@ class Player
             if (gold > RecruitmentCost1)
             {
                 activatedPoints = UpdateAfterMoveMap(map, myBase); //активируем мои точки в результате движения юнитов
-                allMoveLc = GetBestRecruitmentUnits(map, oppBase, gold, income, null, out allMoveRecUnits);
+                allMoveLc = GetBestRecruitmentUnits(map, myBase, oppBase, gold, income, null, out allMoveRecUnits);
 
                 if (allMoveLc.IsWin)
                 {
@@ -1740,7 +1740,7 @@ class Player
 
 
                 //TODO: активировать точки тут смысла нет, т.к. тренировка всегда будет рядом с мувом
-                var lc = GetBestRecruitmentUnits(map, oppBase, gold, income, n, out var recUnits);
+                var lc = GetBestRecruitmentUnits(map, myBase, oppBase, gold, income, n, out var recUnits);
                 
                 foreach (var ru in recUnits)//снимаем 1 за захваченные тренировкой точки врага
                 {
@@ -2028,7 +2028,7 @@ class Player
     }
 
 
-    static LossContainer GetBestRecruitmentUnits(Point[,] map, Building oppBase, int gold, int income, Point pointFrom, out List<Unit> resUnits)
+    static LossContainer GetBestRecruitmentUnits(Point[,] map, Building myBase, Building oppBase, int gold, int income, Point pointFrom, out List<Unit> resUnits)
     {
         var lc = new LossContainer();
         if (pointFrom != null && pointFrom.X == oppBase.X && pointFrom.Y == oppBase.Y)
@@ -2054,10 +2054,47 @@ class Player
         }
 
         int owner = oppBase.Owner == 1 ? 0 : 1;
+        IList<Point> activatedPoints = null;
+        List<Point> recruitmentPoints;
 
-        var recruitmentPoints = pointFrom == null
-            ? GetRecruitmentPoints(map, owner)
-            : GetRecruitmentPoints(map, pointFrom, owner);
+        if (pointFrom == null)
+        {
+            recruitmentPoints = GetRecruitmentPoints(map, owner);
+        }
+        else
+        {
+            recruitmentPoints = GetRecruitmentPoints(map, pointFrom, owner);
+
+            var needUpdate = pointFrom.Y > 0 && map[pointFrom.Y - 1, pointFrom.X] != null &&
+                             !map[pointFrom.Y - 1, pointFrom.X].IsActive &&
+                             map[pointFrom.Y - 1, pointFrom.X].Owner == myBase.Owner ||
+                             pointFrom.Y < Size - 1 && map[pointFrom.Y + 1, pointFrom.X] != null &&
+                             !map[pointFrom.Y + 1, pointFrom.X].IsActive &&
+                             map[pointFrom.Y + 1, pointFrom.X].Owner == myBase.Owner ||
+                             pointFrom.X > 0 && map[pointFrom.Y, pointFrom.X - 1] != null &&
+                             !map[pointFrom.Y, pointFrom.X - 1].IsActive &&
+                             map[pointFrom.Y, pointFrom.X - 1].Owner == myBase.Owner ||
+                             pointFrom.X < Size - 1 && map[pointFrom.Y, pointFrom.X + 1] != null &&
+                             !map[pointFrom.Y, pointFrom.X + 1].IsActive &&
+                             map[pointFrom.Y, pointFrom.X + 1].Owner == myBase.Owner;
+
+
+            if (needUpdate)
+            {
+                activatedPoints = UpdateAfterMoveMap(map, myBase);
+                foreach (var ap in activatedPoints)
+                {
+                    var rps = GetRecruitmentPoints(map, ap, owner);
+                    foreach (var rp in rps)
+                    {
+                        if (!recruitmentPoints.Contains(rp))
+                            recruitmentPoints.Add(rp);
+                    }
+                }
+            }
+        }
+
+     
 
         LossContainer bestLc = null;
         int minOppBaseDist = int.MaxValue;
@@ -2079,7 +2116,7 @@ class Player
             map[rp.Y,rp.X] = unit ;
 
 
-            var lcCur = GetBestRecruitmentUnits(map, oppBase, gold - cost, income - upkeep, rp, out var resUnitsCur);
+            var lcCur = GetBestRecruitmentUnits(map, myBase, oppBase, gold - cost, income - upkeep, rp, out var resUnitsCur);
 
             map[rp.Y,rp.X] = changePoint;
 
@@ -2095,6 +2132,10 @@ class Player
                     break;
             }
         }
+
+        if (activatedPoints != null)
+            foreach (var ap in activatedPoints)
+                ap.IsActive = false;
 
         if (!hasRecPoint)
         {
