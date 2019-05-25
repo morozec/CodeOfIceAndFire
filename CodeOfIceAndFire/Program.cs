@@ -1196,6 +1196,30 @@ class Player
         var noWayUnits = new List<Unit>();
         foreach (var myUnit in myUnits)
         {
+
+            var neighbours = GetMapNeighbours(map, myUnit, false);
+            var gotStep = false;
+            foreach (var n in neighbours)
+            {
+                if (n == null || n.Owner == myUnit.Owner || GetManhDist(myUnit, oppBase) < GetManhDist(n, oppBase) ||
+                    !CanMove(myUnit, n, map))
+                    continue;
+
+                moves.Add(new Tuple<Unit, Point>(myUnit, map[n.Y, n.X]));
+
+                map[myUnit.Y, myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
+                map[n.Y, n.X] = new Unit(n.X, n.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
+
+                table[n.Y, n.X].Owner = 0;
+                table[myUnit.Y, myUnit.X].IsMySolder = false;
+                table[n.Y, n.X].IsMySolder = true;
+
+                gotStep = true;
+                break;
+            }
+
+            if (gotStep) continue;
+
             var startPoint = table[myUnit.Y, myUnit.X];
             var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false);
             if (path.Count < 2) continue;
