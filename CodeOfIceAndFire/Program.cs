@@ -1145,7 +1145,19 @@ class Player
             var neighbours = GetMapNeighbours(map, myUnit, false);
             int minOppBorderDist = int.MaxValue;
             Point minOppBorderDistPoint = null;
-            if (_oppBorderMap[myUnit.Y, myUnit.X] > 1)
+            foreach (var n in neighbours)
+            {
+                if (n != null && n.Owner == 1 && (n is Unit || n is Building) && CanMove(myUnit, n, map))
+                {
+                    minOppBorderDistPoint = n;
+                    break;
+                }
+            }
+
+
+            var isTowerInfluence = IsTowerInfluenceCell(myUnit.X, myUnit.Y, map, 0);
+
+            if (minOppBorderDistPoint == null && (isTowerInfluence || _oppBorderMap[myUnit.Y, myUnit.X] > 1))
                 foreach (var n in neighbours)
                 {
                     if (n == null || n.Owner == myUnit.Owner || 
@@ -1174,6 +1186,7 @@ class Player
                 table[minOppBorderDistPoint.Y, minOppBorderDistPoint.X].Owner = 0;
                 table[myUnit.Y, myUnit.X].IsMySolder = false;
                 table[minOppBorderDistPoint.Y, minOppBorderDistPoint.X].IsMySolder = true;
+                _oppBorderMap = GetOppBorderMap(map);
                 continue;
             }
 
@@ -1181,9 +1194,9 @@ class Player
             if (path.Count < 2) continue;
             var step = path[1] as AStarPoint;
 
-            if (_oppBorderMap[myUnit.Y, myUnit.X] <= 1 && map[step.Y, step.X].Owner != 1) continue;
+            if (!isTowerInfluence && _oppBorderMap[myUnit.Y, myUnit.X] <= 1 && map[step.Y, step.X] != null && map[step.Y, step.X].Owner != 1) continue;
 
-            if (!IsTowerInfluenceCell(myUnit.X, myUnit.Y, map, 0))
+            if (!isTowerInfluence)
             {
                 var noOppPath = Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false, false);
                 var isBorderUnit = noOppPath.Count - 1 == _oppBaseMap[myUnit.Y, myUnit.X];
@@ -1218,6 +1231,7 @@ class Player
                 table[step.Y, step.X].Owner = 0;
                 table[myUnit.Y, myUnit.X].IsMySolder = false;
                 table[step.Y, step.X].IsMySolder = true;
+                _oppBorderMap = GetOppBorderMap(map);
             }
 
         }
