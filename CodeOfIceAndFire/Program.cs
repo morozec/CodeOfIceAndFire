@@ -773,120 +773,120 @@ class Player
 
         Building saveBuilding = null;
 
-        if (gold > TowerCost)
-        {
-            var endCostPoint = table[myBase.Y, myBase.X];
-            IList<APoint> minCostPath = null;
-            var minSumCost = double.MaxValue;
-            foreach (var oppUnit in oppUnits)
-            {
-                var startCostPoint = table[oppUnit.Y, oppUnit.X];
-                var costPath = Calculator.GetPath(
-                    startCostPoint, endCostPoint, allPoints, oppUnit, map, true, true);
-                var sumCost = costPath[costPath.Count - 1].G;
-                if (costPath[1].G <= 10 + 1E-3)
-                    sumCost -= 10;
+        //if (gold > TowerCost)
+        //{
+        //    var endCostPoint = table[myBase.Y, myBase.X];
+        //    IList<APoint> minCostPath = null;
+        //    var minSumCost = double.MaxValue;
+        //    foreach (var oppUnit in oppUnits)
+        //    {
+        //        var startCostPoint = table[oppUnit.Y, oppUnit.X];
+        //        var costPath = Calculator.GetPath(
+        //            startCostPoint, endCostPoint, allPoints, oppUnit, map, true, true);
+        //        var sumCost = costPath[costPath.Count - 1].G;
+        //        if (costPath[1].G <= 10 + 1E-3)
+        //            sumCost -= 10;
 
-                if (sumCost < minSumCost)
-                {
-                    minSumCost = sumCost;
-                    minCostPath = costPath;
-                }
-            }
+        //        if (sumCost < minSumCost)
+        //        {
+        //            minSumCost = sumCost;
+        //            minCostPath = costPath;
+        //        }
+        //    }
 
-            if (minSumCost <= oppGold + oppIncome)
-            {
-                var maxDefCount = -1;
-                var minDefWeight = int.MaxValue;
-                Point resPoint = null;
-                for (var i = 1; i < minCostPath.Count; ++i)
-                {
-                    AStarPoint asPoint = minCostPath[i] as AStarPoint;
-                    var mapPoint = map[asPoint.Y, asPoint.X];
-                    if (mapPoint == null || mapPoint.Owner != 0 || !mapPoint.IsActive || mapPoint is Unit ||
-                        mapPoint is Building || mineSpots.Any(ms => ms.X == asPoint.X && ms.Y == asPoint.Y))
-                        continue;
+        //    if (minSumCost <= oppGold + oppIncome)
+        //    {
+        //        var maxDefCount = -1;
+        //        var minDefWeight = int.MaxValue;
+        //        Point resPoint = null;
+        //        for (var i = 1; i < minCostPath.Count; ++i)
+        //        {
+        //            AStarPoint asPoint = minCostPath[i] as AStarPoint;
+        //            var mapPoint = map[asPoint.Y, asPoint.X];
+        //            if (mapPoint == null || mapPoint.Owner != 0 || !mapPoint.IsActive || mapPoint is Unit ||
+        //                mapPoint is Building || mineSpots.Any(ms => ms.X == asPoint.X && ms.Y == asPoint.Y))
+        //                continue;
 
-                    var prevAsPoint = minCostPath[i - 1] as AStarPoint;
-                    var mapPrevAsPoint = map[prevAsPoint.Y, prevAsPoint.X];
-                    var count = 0;
-                    var weight = 0;
-                    if (mapPrevAsPoint != null && mapPrevAsPoint.Owner == 0)
-                    {
-                        count++;
-                        if (mapPrevAsPoint is Unit mpasUnit)
-                        {
-                            weight += GetUnitCost(mpasUnit.Level);
-                        }
-                        else if (mapPrevAsPoint is Building mpasBuilding)
-                        {
-                            if (mpasBuilding.BuildingType == 2)
-                                weight += 30;
-                        }
-                        else
-                        {
-                            weight += 0;
-                        }
-                    }
-                    else
-                    {
-                        weight += BIG_WEIGHT;
-                    }
+        //            var prevAsPoint = minCostPath[i - 1] as AStarPoint;
+        //            var mapPrevAsPoint = map[prevAsPoint.Y, prevAsPoint.X];
+        //            var count = 0;
+        //            var weight = 0;
+        //            if (mapPrevAsPoint != null && mapPrevAsPoint.Owner == 0)
+        //            {
+        //                count++;
+        //                if (mapPrevAsPoint is Unit mpasUnit)
+        //                {
+        //                    weight += GetUnitCost(mpasUnit.Level);
+        //                }
+        //                else if (mapPrevAsPoint is Building mpasBuilding)
+        //                {
+        //                    if (mpasBuilding.BuildingType == 2)
+        //                        weight += 30;
+        //                }
+        //                else
+        //                {
+        //                    weight += 0;
+        //                }
+        //            }
+        //            else
+        //            {
+        //                weight += BIG_WEIGHT;
+        //            }
 
-                    if (count > maxDefCount || count == maxDefCount && weight < minDefWeight)
-                    {
-                        maxDefCount = count;
-                        minDefWeight = weight;
-                        resPoint = mapPoint;
-                    }
+        //            if (count > maxDefCount || count == maxDefCount && weight < minDefWeight)
+        //            {
+        //                maxDefCount = count;
+        //                minDefWeight = weight;
+        //                resPoint = mapPoint;
+        //            }
                     
-                }
+        //        }
 
-                if (minSumCost <= oppGold + oppIncome - maxDefCount * 30)
-                    resPoint = null;
+        //        if (minSumCost <= oppGold + oppIncome - maxDefCount * 30)
+        //            resPoint = null;
 
-                if (resPoint == null)
-                {
-                    var ns = new Dictionary<Point, int>();
-                    foreach (AStarPoint asp in minCostPath)
-                    {
-                        if (map[asp.Y, asp.X].Owner != 0) continue;
+        //        if (resPoint == null)
+        //        {
+        //            var ns = new Dictionary<Point, int>();
+        //            foreach (AStarPoint asp in minCostPath)
+        //            {
+        //                if (map[asp.Y, asp.X].Owner != 0) continue;
 
-                        var neighbours = GetMapNeighbours(map, map[asp.Y, asp.X], false);
-                        foreach (var n in neighbours)
-                        {
-                            if (n == null || n.Owner != 0 || !n.IsActive || n is Unit || n is Building ||
-                                mineSpots.Any(ms => ms.X == n.X && ms.Y == n.Y))
-                                continue;
-                            if (!ns.ContainsKey(n))
-                                ns.Add(n, 0);
-                            ns[n]++;
-                        }
-                    }
+        //                var neighbours = GetMapNeighbours(map, map[asp.Y, asp.X], false);
+        //                foreach (var n in neighbours)
+        //                {
+        //                    if (n == null || n.Owner != 0 || !n.IsActive || n is Unit || n is Building ||
+        //                        mineSpots.Any(ms => ms.X == n.X && ms.Y == n.Y))
+        //                        continue;
+        //                    if (!ns.ContainsKey(n))
+        //                        ns.Add(n, 0);
+        //                    ns[n]++;
+        //                }
+        //            }
 
-                    int maxNeighbours = 0;
-                    foreach (var item in ns)
-                        if (item.Value > maxNeighbours)
-                        {
-                            maxNeighbours = item.Value;
-                            resPoint = item.Key;
-                        }
+        //            int maxNeighbours = 0;
+        //            foreach (var item in ns)
+        //                if (item.Value > maxNeighbours)
+        //                {
+        //                    maxNeighbours = item.Value;
+        //                    resPoint = item.Key;
+        //                }
 
-                    if (minSumCost <= oppGold + oppIncome - maxNeighbours * 30)
-                        resPoint = null;
-                }
+        //            if (minSumCost <= oppGold + oppIncome - maxNeighbours * 30)
+        //                resPoint = null;
+        //        }
 
                 
 
-                if (resPoint != null)
-                {
-                    Console.Error.WriteLine("SAVE TOWER");
-                    saveBuilding = new Building(resPoint.X, resPoint.Y, 0, 2, true);
-                    gold -= TowerCost;
-                    map[resPoint.Y, resPoint.X] = saveBuilding;
-                }
-            }
-        }
+        //        if (resPoint != null)
+        //        {
+        //            Console.Error.WriteLine("SAVE TOWER");
+        //            saveBuilding = new Building(resPoint.X, resPoint.Y, 0, 2, true);
+        //            gold -= TowerCost;
+        //            map[resPoint.Y, resPoint.X] = saveBuilding;
+        //        }
+        //    }
+        //}
 
 
         _oppBorderMap = GetOppBorderMap(map);
