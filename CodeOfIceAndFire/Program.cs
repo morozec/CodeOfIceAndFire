@@ -1172,10 +1172,13 @@ class Player
             if (path.Count < 2) continue;
             var step = path[1] as AStarPoint;
 
-            var noOppPath = Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false, false);
-            var isBorderUnit = noOppPath.Count - 1 == _oppBaseMap[myUnit.Y, myUnit.X];
-            if (isBorderUnit && _oppBaseMap[step.Y, step.X] > _oppBaseMap[myUnit.Y, myUnit.X])
-                continue;
+            if (!IsTowerInfluenceCell(myUnit.X, myUnit.Y, map, 0))
+            {
+                var noOppPath = Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false, false);
+                var isBorderUnit = noOppPath.Count - 1 == _oppBaseMap[myUnit.Y, myUnit.X];
+                if (isBorderUnit && _oppBaseMap[step.Y, step.X] > _oppBaseMap[myUnit.Y, myUnit.X])
+                    continue;
+            }
 
             var isNoWay = false;
             for (var i = 1; i < path.Count; ++i)
