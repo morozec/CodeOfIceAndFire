@@ -1785,9 +1785,9 @@ class Player
         }
 
         var killedPoints = 0;
-        if (pointFrom != null && pointFrom.Owner == oppBase.Owner &&
-            (pointFrom is Unit || pointFrom is Building building && building.BuildingType == 2))
-            killedPoints++;
+        //if (pointFrom != null && pointFrom.Owner == oppBase.Owner &&
+        //    (pointFrom is Unit || pointFrom is Building building && building.BuildingType == 2))
+        //    killedPoints++;
 
         if (gold < RecruitmentCost1 || deepLevel > MaxDeepLevel)
         {
