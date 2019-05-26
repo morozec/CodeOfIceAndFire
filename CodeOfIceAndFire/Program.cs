@@ -1145,23 +1145,24 @@ class Player
             var neighbours = GetMapNeighbours(map, myUnit, false);
             int minOppBorderDist = int.MaxValue;
             Point minOppBorderDistPoint = null;
-            foreach (var n in neighbours)
-            {
-                if (n == null || n.Owner == myUnit.Owner || 
-                    !CanMove(myUnit, n, map))
-                    continue;
-
-                if (_oppBaseMap[n.Y,n.X] > _oppBaseMap[myUnit.Y, myUnit.X])
-                    continue;
-
-               
-
-                if (_oppBorderMap[n.Y, n.X] < minOppBorderDist)
+            if (_oppBorderMap[myUnit.Y, myUnit.X] > 1)
+                foreach (var n in neighbours)
                 {
-                    minOppBorderDist = _oppBorderMap[n.Y, n.X];
-                    minOppBorderDistPoint = n;
+                    if (n == null || n.Owner == myUnit.Owner || 
+                        !CanMove(myUnit, n, map))
+                        continue;
+
+                    if (_oppBaseMap[n.Y,n.X] > _oppBaseMap[myUnit.Y, myUnit.X])
+                        continue;
+
+                   
+
+                    if (_oppBorderMap[n.Y, n.X] < minOppBorderDist)
+                    {
+                        minOppBorderDist = _oppBorderMap[n.Y, n.X];
+                        minOppBorderDistPoint = n;
+                    }
                 }
-            }
 
             if (minOppBorderDistPoint != null)
             {
@@ -1179,6 +1180,8 @@ class Player
             var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false, true);
             if (path.Count < 2) continue;
             var step = path[1] as AStarPoint;
+
+            if (_oppBorderMap[myUnit.Y, myUnit.X] <= 1 && map[step.Y, step.X].Owner != 1) continue;
 
             if (!IsTowerInfluenceCell(myUnit.X, myUnit.Y, map, 0))
             {
