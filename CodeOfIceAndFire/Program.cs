@@ -27,7 +27,7 @@ namespace AStar
 
         public abstract double GetHeuristicCost(APoint goal);
 
-        public abstract double GetCost(APoint goal, Unit unit, Point[,] map, bool isCostPath);
+        public abstract double GetCost(APoint goal, Unit unit, Point[,] map, bool isCostPath, bool considerOpp);
 
         public int CompareTo(APoint other)
         {
@@ -57,7 +57,7 @@ namespace AStar
             return Player.GetManhDist(X, Y, aStarGoal.X, aStarGoal.Y);
         }
 
-        public override double GetCost(APoint goal, Unit unit, Point[,] map, bool isCostPath)
+        public override double GetCost(APoint goal, Unit unit, Point[,] map, bool isCostPath, bool considerOpp)
         {
             var aStarGoal = goal as AStarPoint;
 
@@ -140,7 +140,9 @@ namespace AStar
             }
 
            
-            if (unit.Level < 3 && Player.IsTowerInfluenceCell(aStarGoal.X, aStarGoal.Y, map, unit.Owner == 0 ? 1 : 0))
+
+           
+            if (considerOpp && unit.Level < 3 && Player.IsTowerInfluenceCell(aStarGoal.X, aStarGoal.Y, map, unit.Owner == 0 ? 1 : 0))
                 return BIG_WEIGHT;
 
             if (map[aStarGoal.Y, aStarGoal.X] != null && map[aStarGoal.Y, aStarGoal.X].Owner == unit.Owner &&
@@ -152,7 +154,7 @@ namespace AStar
                 if (mUnit.Owner == unit.Owner)
                     return BIG_WEIGHT;
 
-                if (unit.Level != 3 && unit.Level <= mUnit.Level)
+                if (considerOpp && unit.Level != 3 && unit.Level <= mUnit.Level)
                     return BIG_WEIGHT;
             }
 
@@ -183,7 +185,7 @@ namespace AStar
     public static class Calculator
     {
         private static ExpansionMatrixConteiner GetExpansionMatrix(APoint start, APoint goal, IEnumerable<APoint> allPoints,
-            Unit unit, Point[,] map , bool isCostPath)
+            Unit unit, Point[,] map , bool isCostPath, bool considerOpp)
         {
             foreach (var point in allPoints)
             {
@@ -224,7 +226,7 @@ namespace AStar
                 {
                     if (closedSet.Contains(y)) continue;
 
-                    var tentativeGScore = x.G + x.GetCost(y,unit, map, isCostPath);
+                    var tentativeGScore = x.G + x.GetCost(y,unit, map, isCostPath, considerOpp);
                     bool tentativeIsBetter;
 
                     if (!openSet.Contains(y))
@@ -254,12 +256,12 @@ namespace AStar
 
        
         public static IList<APoint> GetPath(APoint start, APoint goal, IEnumerable<APoint> allPoints, Unit unit,
-            Point[,] map, bool isCostPath)
+            Point[,] map, bool isCostPath, bool considerOpp)
         {
             start.G = 0;
             start.H = 0;
             start.CameFromPoint = null;
-            var emc = GetExpansionMatrix(start, goal, allPoints, unit, map, isCostPath);
+            var emc = GetExpansionMatrix(start, goal, allPoints, unit, map, isCostPath, considerOpp);
             return ReconstructPath(emc.RealGoalPoint);
         }
       
@@ -781,7 +783,8 @@ class Player
             foreach (var oppUnit in oppUnits)
             {
                 var startCostPoint = table[oppUnit.Y, oppUnit.X];
-                var costPath = Calculator.GetPath(startCostPoint, endCostPoint, allPoints, oppUnit, map, true);
+                var costPath = Calculator.GetPath(
+                    startCostPoint, endCostPoint, allPoints, oppUnit, map, true, true);
                 var sumCost = costPath[costPath.Count - 1].G;
                 if (costPath[1].G <= 10 + 1E-3)
                     sumCost -= 10;
@@ -1137,13 +1140,12 @@ class Player
         var endPoint = table[oppBase.Y, oppBase.X];
         myUnits = myUnits.OrderBy(u => GetManhDist(u, oppBase)).ToList();
         var noWayUnits = new List<Unit>();
+
         foreach (var myUnit in myUnits)
         {
-
+            
             var startPoint = table[myUnit.Y, myUnit.X];
            
-            
-
             var neighbours = GetMapNeighbours(map, myUnit, false);
             var gotStep = false;
             foreach (var n in neighbours)
@@ -1170,8 +1172,14 @@ class Player
 
             if (gotStep) continue;
 
-            var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false);
+            var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false, true);
             if (path.Count < 2) continue;
+            var step = path[1] as AStarPoint;
+
+            var noOppPath = Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false, false);
+            var isBorderUnit = noOppPath.Count - 1 == _oppBaseMap[myUnit.Y, myUnit.X];
+            if (isBorderUnit && _oppBaseMap[step.Y, step.X] > _oppBaseMap[myUnit.Y, myUnit.X])
+                continue;
 
             var isNoWay = false;
             for (var i = 1; i < path.Count; ++i)
@@ -1189,7 +1197,7 @@ class Player
                 continue;
             }
 
-            var step = path[1] as AStarPoint;
+           
             if (CanMove(myUnit, map[step.Y,step.X], map))
             {
                 moves.Add(new Tuple<Unit, Point>(myUnit, map[step.Y,step.X]));
@@ -1244,7 +1252,8 @@ class Player
                 allPoints,
                 bestUnit,
                 map,
-                false);
+                false,
+                true);
 
             var bestStep = bestPath[1] as AStarPoint;
             if (CanMove(bestUnit, map[bestStep.Y,bestStep.X], map))
