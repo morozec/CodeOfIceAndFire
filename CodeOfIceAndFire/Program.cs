@@ -316,6 +316,10 @@ namespace MapPoints
         public List<Building> DeactivatedBuildings { get; set; }
         public List<Point> LostPoint { get; set; }
 
+        public int MoveKilledUnits { get; set; }
+        public int MoveKilledBuildings { get; set; }
+        public int CutKilledCount => KilledUnits.Count + KilledBuildings.Count - MoveKilledUnits - MoveKilledBuildings;
+
         public LossContainer()
         {
             IsWin = false;
@@ -323,6 +327,8 @@ namespace MapPoints
             KilledBuildings = new List<Building>();
             DeactivatedBuildings = new List<Building>();
             LostPoint = new List<Point>();
+            MoveKilledUnits = 0;
+            MoveKilledBuildings = 0;
         }
 
         public void Add(LossContainer lc)
@@ -332,6 +338,8 @@ namespace MapPoints
             KilledBuildings.AddRange(lc.KilledBuildings);
             DeactivatedBuildings.AddRange(lc.DeactivatedBuildings);
             LostPoint.AddRange(lc.LostPoint);
+            MoveKilledUnits += lc.MoveKilledUnits;
+            MoveKilledBuildings += lc.MoveKilledBuildings;
         }
     }
 
@@ -1366,7 +1374,7 @@ class Player
         var noTowersOppKilledCount = oppKilledCount;
         UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedPoints);
 
-        var allMoveSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
+        var allMoveSumKill = allMoveLc.CutKilledCount + moveKilledCount;
         var allMoveDeltaKillCount = allMoveSumKill - oppKilledCount;
 
         //if (allMoveDeltaKillCount >= maxDeltaKillCount)
@@ -1542,7 +1550,7 @@ class Player
                 oppKilledCount = GetOppMaxKillCount(GetAliveOppUnit(map), map, myBase, oppBase, allMoveResOppGold);
                 UpdateMapBack(map, allMoveLc, activatedPoints, allMoveCapturedPoints);
 
-                maxSumKill = allMoveLc.KilledUnits.Count + allMoveLc.KilledBuildings.Count + moveKilledCount;
+                maxSumKill = allMoveLc.CutKilledCount + moveKilledCount;
                 maxDeltaKillCount = maxSumKill - oppKilledCount;
                 bestRecUnits.AddRange(allMoveRecUnits);
             }
@@ -1698,7 +1706,7 @@ class Player
 
                 UpdateMapBack(map, lc, new List<Point>(), capturedPoints);
 
-                var sumKill = moveKilledCount + lc.KilledUnits.Count + lc.KilledBuildings.Count;
+                var sumKill = moveKilledCount + lc.CutKilledCount;
 
                 if (lc.IsWin ||
                     (action == Action.StayBuildTower || action == Action.StayNoTower) && sumKill - oppKillCount >= maxDeltaKillCount ||
@@ -1960,9 +1968,15 @@ class Player
         if (pointFrom != null && pointFrom.Owner == oppBase.Owner)
         {
             if (pointFrom is Unit pUnit)
+            {
                 lc.KilledUnits.Add(pUnit);
-            else if (pointFrom is Building pBuilding )
+                lc.MoveKilledUnits++;
+            }
+            else if (pointFrom is Building pBuilding)
+            {
                 lc.KilledBuildings.Add(pBuilding);
+                lc.MoveKilledBuildings++;
+            }
         }
 
         if (gold < RecruitmentCost1)
