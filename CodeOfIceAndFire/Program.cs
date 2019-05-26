@@ -1143,7 +1143,8 @@ class Player
             var startPoint = table[myUnit.Y, myUnit.X];
            
             var neighbours = GetMapNeighbours(map, myUnit, false);
-            var gotStep = false;
+            int minOppBorderDist = int.MaxValue;
+            Point minOppBorderDistPoint = null;
             foreach (var n in neighbours)
             {
                 if (n == null || n.Owner == myUnit.Owner || 
@@ -1153,20 +1154,27 @@ class Player
                 if (_oppBaseMap[n.Y,n.X] > _oppBaseMap[myUnit.Y, myUnit.X])
                     continue;
 
-                moves.Add(new Tuple<Unit, Point>(myUnit, map[n.Y, n.X]));
+               
 
-                map[myUnit.Y, myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
-                map[n.Y, n.X] = new Unit(n.X, n.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
-
-                table[n.Y, n.X].Owner = 0;
-                table[myUnit.Y, myUnit.X].IsMySolder = false;
-                table[n.Y, n.X].IsMySolder = true;
-
-                gotStep = true;
-                break;
+                if (_oppBorderMap[n.Y, n.X] < minOppBorderDist)
+                {
+                    minOppBorderDist = _oppBorderMap[n.Y, n.X];
+                    minOppBorderDistPoint = n;
+                }
             }
 
-            if (gotStep) continue;
+            if (minOppBorderDistPoint != null)
+            {
+                moves.Add(new Tuple<Unit, Point>(myUnit, map[minOppBorderDistPoint.Y, minOppBorderDistPoint.X]));
+
+                map[myUnit.Y, myUnit.X] = new Point(myUnit.X, myUnit.Y, 0, true);
+                map[minOppBorderDistPoint.Y, minOppBorderDistPoint.X] = new Unit(minOppBorderDistPoint.X, minOppBorderDistPoint.Y, myUnit.Owner, myUnit.Id, myUnit.Level);
+
+                table[minOppBorderDistPoint.Y, minOppBorderDistPoint.X].Owner = 0;
+                table[myUnit.Y, myUnit.X].IsMySolder = false;
+                table[minOppBorderDistPoint.Y, minOppBorderDistPoint.X].IsMySolder = true;
+                continue;
+            }
 
             var path = AStar.Calculator.GetPath(startPoint, endPoint, allPoints, myUnit, map, false, true);
             if (path.Count < 2) continue;
@@ -2559,7 +2567,7 @@ class Player
             for (var j = 0; j < Size; ++j)
             {
                 var p = map[i, j];
-                if (p == null || p.Owner == -1)
+                if (p == null)
                 {
                     resMap[i, j] = BIG_WEIGHT;
                     continue;
