@@ -716,7 +716,7 @@ class Player
 
     static int GetOppMaxKillCount(IList<Unit> oppUnits, Point[,] map, Building myBase, Building oppBase, int oppGold)
     {
-        int maxKillCount = GetBestRecruitmentUnitsCount(map, oppBase, myBase, oppGold, null, 0, false, out _);
+        int maxKillCount = GetBestRecruitmentUnitsCount(map, oppBase, myBase, oppGold, null, 0, false, out var oppRecUnits0);
 
         foreach (var unit in oppUnits)
         {
@@ -1642,7 +1642,7 @@ class Player
 
 
                 //TODO: активировать точки тут смысла нет, т.к. тренировка всегда будет рядом с мувом
-                var lc = GetBestRecruitmentUnits(map, myBase, oppBase, gold, income, n, out var recUnits);
+                var lc = GetBestRecruitmentUnits(map, myBase, oppBase, gold, income, null, out var recUnits);
                 
                 foreach (var ru in recUnits)//снимаем 1 за захваченные тренировкой точки врага
                 {
