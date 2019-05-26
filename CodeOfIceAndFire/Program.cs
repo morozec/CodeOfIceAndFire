@@ -413,6 +413,7 @@ class Player
     private const int Size = 12;
     private static Random _rnd = new Random();
     private static int[,] _oppBaseMap; 
+    private static int[,] _oppBorderMap; 
     private static bool[][,] _oppNeutralMap; 
     
 
@@ -888,7 +889,7 @@ class Player
         }
 
 
-        var oppBorderMap = GetOppBorderMap(map);
+        _oppBorderMap = GetOppBorderMap(map);
 
         //стоим всеми
         var action = Action.StayNoTower;
@@ -990,7 +991,7 @@ class Player
                     if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
                         continue;
 
-                    if (oppBorderMap[i, j] > OppBorderTowersDist) continue;
+                    if (_oppBorderMap[i, j] > OppBorderTowersDist) continue;
 
                     //if (!IsCloseBorderPoint(point, map)) continue;
 
@@ -1394,7 +1395,7 @@ class Player
                     if (point == null || point.Owner != 0 || !point.IsActive || point is Unit || point is Building || mineSpots.Any(ms => ms.X == point.X && ms.Y == point.Y))
                         continue;
 
-                    if (oppBorderMap[i,j] > OppBorderTowersDist) continue;
+                    if (_oppBorderMap[i,j] > OppBorderTowersDist) continue;
 
                     //if (!IsCloseBorderPoint(point, map)) continue;
 
@@ -1987,6 +1988,7 @@ class Player
 
         LossContainer bestLc = null;
         int minOppBaseDist = int.MaxValue;
+        int minOppBorderDist = int.MaxValue;
         var bestResUnits = new List<Unit>();
 
         var hasRecPoint = false;
@@ -2011,9 +2013,12 @@ class Player
 
             //TODO: нормальный критерий
             if (bestLc == null || lcCur.IsWin || lcCur.KilledUnits.Count > bestLc.KilledUnits.Count ||
-                lcCur.KilledUnits.Count == bestLc.KilledUnits.Count && _oppBaseMap[rp.Y, rp.X] < minOppBaseDist)
+                lcCur.KilledUnits.Count == bestLc.KilledUnits.Count && _oppBorderMap[rp.Y, rp.X] < minOppBorderDist ||
+                lcCur.KilledUnits.Count == bestLc.KilledUnits.Count && _oppBorderMap[rp.Y, rp.X] == minOppBorderDist &&
+                _oppBaseMap[rp.Y, rp.X] < minOppBaseDist)
             {
                 bestLc = lcCur;
+                minOppBorderDist = _oppBorderMap[rp.Y, rp.X];
                 minOppBaseDist = _oppBaseMap[rp.Y, rp.X];
                 resUnitsCur.Insert(0, unit);
                 bestResUnits = resUnitsCur;
