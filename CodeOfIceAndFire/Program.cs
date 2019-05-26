@@ -1241,6 +1241,7 @@ class Player
             {
                 foreach (var unit in noWayUnits)
                 {
+                    if (!CanMove(unit, ccp, map)) continue;
                     var dist = GetManhDist(unit, ccp);
                     if (dist < minDist)
                     {
