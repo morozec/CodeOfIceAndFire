@@ -1155,7 +1155,7 @@ class Player
             Point minOppBorderDistPoint = null;
             foreach (var n in neighbours)
             {
-                if (n != null && n.Owner == 1 && (n is Unit || n is Building) && CanMove(myUnit, n, map))
+                if (n != null && n.Owner == 1 && (n is Unit || n is Building && n.IsActive) && CanMove(myUnit, n, map))
                 {
                     minOppBorderDistPoint = n;
                     break;
