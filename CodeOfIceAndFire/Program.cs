@@ -1466,7 +1466,8 @@ class Player
 
                     if ((action == Action.StayBuildTower || action == Action.StayNoTower) && moveKilledCount - towerOppKilledCount >= maxDeltaKillCount ||
                         moveKilledCount - towerOppKilledCount > maxDeltaKillCount ||
-                        moveKilledCount - towerOppKilledCount == maxDeltaKillCount && protectPointsCount > maxProtectPointsCount)
+                        action == Action.MoveBuildTower && moveKilledCount - towerOppKilledCount == maxDeltaKillCount &&
+                        protectPointsCount > maxProtectPointsCount)
                     {
                         action = Action.MoveBuildTower;
                         maxSumKill = moveKilledCount;
@@ -1475,7 +1476,8 @@ class Player
                         bestRecUnits = new List<Unit>();
                         bestBuildTowers = new List<Building>() {tower};
                         bestMovies = moves;
-                        Console.Error.WriteLine($"ALL MOVE TOWER: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
+                        Console.Error.WriteLine(
+                            $"ALL MOVE TOWER: {moveKilledCount} - {towerOppKilledCount} = {maxDeltaKillCount}");
                     }
 
                     map[i, j] = point;
@@ -1710,7 +1712,9 @@ class Player
 
                 if (lc.IsWin ||
                     (action == Action.StayBuildTower || action == Action.StayNoTower) && sumKill - oppKillCount >= maxDeltaKillCount ||
-                    sumKill - oppKillCount > maxDeltaKillCount || sumKill - oppKillCount == maxDeltaKillCount && sumKill > maxSumKill)
+                    sumKill - oppKillCount > maxDeltaKillCount || 
+                    sumKill - oppKillCount == maxDeltaKillCount && recUnits.Count > bestRecUnits.Count ||
+                    sumKill - oppKillCount == maxDeltaKillCount && recUnits.Count == bestRecUnits.Count && sumKill > maxSumKill)
                 {
                     maxDeltaKillCount = sumKill - oppKillCount;
                     maxSumKill = sumKill;
@@ -2055,9 +2059,11 @@ class Player
             map[rp.Y,rp.X] = changePoint;
 
             //TODO: нормальный критерий
-            if (bestLc == null || lcCur.IsWin || lcCur.KilledUnits.Count > bestLc.KilledUnits.Count ||
-                lcCur.KilledUnits.Count == bestLc.KilledUnits.Count && _oppBorderMap[rp.Y, rp.X] < minOppBorderDist ||
-                lcCur.KilledUnits.Count == bestLc.KilledUnits.Count && _oppBorderMap[rp.Y, rp.X] == minOppBorderDist &&
+            if (bestLc == null || lcCur.IsWin || 
+                lcCur.CutKilledCount > bestLc.CutKilledCount ||
+                lcCur.CutKilledCount == bestLc.CutKilledCount && resUnitsCur.Count > bestResUnits.Count - 1 ||
+                lcCur.CutKilledCount == bestLc.CutKilledCount && resUnitsCur.Count == bestResUnits.Count - 1 && _oppBorderMap[rp.Y, rp.X] < minOppBorderDist ||
+                lcCur.CutKilledCount == bestLc.CutKilledCount && resUnitsCur.Count == bestResUnits.Count - 1 && _oppBorderMap[rp.Y, rp.X] == minOppBorderDist &&
                 _oppBaseMap[rp.Y, rp.X] < minOppBaseDist)
             {
                 bestLc = lcCur;
