@@ -1288,8 +1288,18 @@ class Player
                 false,
                 true);
 
+            var isNoWay = false;
+            for (var i = 1; i < bestPath.Count; ++i)
+            {
+                if (bestPath[i].G >= BIG_WEIGHT)
+                {
+                    isNoWay = true;
+                    break;
+                }
+            }
+
             var bestStep = bestPath[1] as AStarPoint;
-            if (CanMove(bestUnit, map[bestStep.Y,bestStep.X], map))
+            if (!isNoWay)
             {
                 moves.Add(new Tuple<Unit, Point>(bestUnit, map[bestStep.Y,bestStep.X]));
 
