@@ -615,20 +615,20 @@ class Player
             }
 
 
-            var mines = myBuildings.Where(b => b.BuildingType == 1).ToList();
-            while (gold >= GetMineCost(mines.Count))
-            {
-                var bmp = GetBestMinePosition(map, mineSpots, myBuildings.Single(b => b.BuildingType == 0));
-                if (bmp != null)
-                {
-                    textCommand += $"BUILD MINE {bmp.X} {bmp.Y};";
-                    mines.Add(new Building(bmp.X, bmp.Y, 0, 1, true));
-                    map[bmp.Y,bmp.X] = new Building(bmp.X, bmp.Y, 0, 1, true);
-                    gold -= GetMineCost(mines.Count);
-                }
-                else
-                    break;
-            }
+            //var mines = myBuildings.Where(b => b.BuildingType == 1).ToList();
+            //while (gold >= GetMineCost(mines.Count))
+            //{
+            //    var bmp = GetBestMinePosition(map, mineSpots, myBuildings.Single(b => b.BuildingType == 0));
+            //    if (bmp != null)
+            //    {
+            //        textCommand += $"BUILD MINE {bmp.X} {bmp.Y};";
+            //        mines.Add(new Building(bmp.X, bmp.Y, 0, 1, true));
+            //        map[bmp.Y,bmp.X] = new Building(bmp.X, bmp.Y, 0, 1, true);
+            //        gold -= GetMineCost(mines.Count);
+            //    }
+            //    else
+            //        break;
+            //}
 
             Console.WriteLine(textCommand != "" ? textCommand : "WAIT");
         }
@@ -2516,6 +2516,9 @@ class Player
     public static bool IsTowerInfluenceCell(int x, int y, Point[,] map, int owner)
     {
         if (map[y,x] == null)
+            return false;
+
+        if (map[y, x].Owner != owner)
             return false;
 
         if (IsTowerCell(x, y, map, owner))
